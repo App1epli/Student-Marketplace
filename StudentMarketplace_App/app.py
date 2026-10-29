@@ -116,34 +116,25 @@ def money(value: object) -> str:
     return f"{amount} ₸"
 
 
-def plural_word(value: int, one: str, few: str, many: str) -> str:
-    tail = value % 100
-    if 11 <= tail <= 14:
-        return many
-    elif value % 10 == 1:
-        return one
-    return few if value % 10 in (2, 3, 4) else many
-
-
-def plural_ru(value: int, one: str, few: str, many: str) -> str:
-    return f"{value} {plural_word(value, one, few, many)}"
+def count_label(value: int, singular: str, plural: str | None = None) -> str:
+    return f"{value} {singular if value == 1 else (plural or singular + 's')}"
 
 
 CATEGORY_LABELS = {
-    "Electronics": "Электроника",
-    "Books and Study": "Книги и учёба",
-    "Dorm Essentials": "Для дома и общежития",
-    "Clothing and Bags": "Одежда и сумки",
+    "Electronics": "Electronics",
+    "Books and Study": "Books and Study",
+    "Dorm Essentials": "Dorm Essentials",
+    "Clothing and Bags": "Clothing and Bags",
 }
-CONDITION_LABELS = {"New": "Новое", "Like New": "Как новое", "Good": "Хорошее", "Fair": "Есть следы использования"}
-STATUS_LABELS = {"Available": "В продаже", "Sold": "Продано", "Removed": "Снято с продажи", "All": "Все объявления"}
+CONDITION_LABELS = {"New": "New", "Like New": "Like New", "Good": "Good", "Fair": "Fair"}
+STATUS_LABELS = {"Available": "Available", "Sold": "Sold", "Removed": "Removed", "All": "All listings"}
 
 
 def page(title: str, content: str, notice: str = "") -> bytes:
     banner = f'<div class="notice" role="status"><span class="notice-icon">✓</span><span>{e(notice)}</span></div>' if notice else ""
     document = f"""<!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#142d44"><title>{e(title)} | Студенческий маркет</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#142d44"><title>{e(title)} | Student Marketplace</title>
 <style>
 :root{{--ink:#203244;--muted:#728092;--blue:#315d85;--pale:#f2f5f8;--line:#e3e8ee;--green:#277653;--gold:#d29b52;--paper:#fff}}
 *{{box-sizing:border-box}}body{{margin:0;background:#f7f8fa;color:var(--ink);font:15px/1.55 Inter,"Segoe UI",Arial,sans-serif}}
@@ -158,35 +149,35 @@ a.button,button{{display:inline-flex;align-items:center;justify-content:center;g
 .sales-table{{width:100%;border-collapse:collapse;margin-top:14px}}th,td{{text-align:left;border-bottom:1px solid var(--line);padding:11px 9px;font-size:13px}}th{{background:#f6f8fa;color:#657587;font-weight:650}}footer{{max-width:1180px;margin:20px auto 0;padding:18px 4px 0;border-top:1px solid var(--line);color:#8793a0;font-size:12px}}
 @media(max-width:950px){{.workspace{{grid-template-columns:1fr}}.form-panel{{position:static}}.filters{{grid-template-columns:1fr 1fr}}.hero{{align-items:flex-start;flex-direction:column}}}}
 @media(max-width:620px){{main{{padding:16px 14px 36px}}header{{padding:14px}}.demo-pill{{display:none}}.hero h1{{font-size:27px}}.catalog{{grid-template-columns:1fr}}.filters{{grid-template-columns:1fr 1fr}}.filters input{{grid-column:1/-1}}.filters button{{grid-column:1/-1}}.panel{{padding:14px}}}}
-</style></head><body><header><div class="topbar"><a class="brand" href="/"><span class="brand-mark">SM</span><span><span class="brand-title">Студенческий маркет</span><br><span class="brand-sub">Вещи находят новых владельцев</span></span></a><span class="demo-pill">Учебный проект</span></div></header>
-<main>{banner}<nav class="nav"><a class="active" href="/">Каталог</a><a href="/sales">История покупок</a></nav>{content}
-<footer>Демонстрационный проект. Все аккаунты и объявления в примере вымышлены.</footer></main></body></html>"""
+</style></head><body><header><div class="topbar"><a class="brand" href="/"><span class="brand-mark">SM</span><span><span class="brand-title">Student Marketplace</span><br><span class="brand-sub">Good items, new owners</span></span></a><span class="demo-pill">Class project</span></div></header>
+<main>{banner}<nav class="nav"><a class="active" href="/">Browse</a><a href="/sales">Purchase history</a></nav>{content}
+<footer>Classroom demo. Sample marketplace accounts and listings are fictional.</footer></main></body></html>"""
     return document.encode("utf-8")
 
 
 def listing_form(conn: sqlite3.Connection) -> str:
     students = conn.execute("SELECT student_id, full_name FROM students ORDER BY full_name").fetchall()
     categories = conn.execute("SELECT category_id, category_name FROM categories WHERE is_active = 1 ORDER BY category_name").fetchall()
-    seller_options = '<option value="">Выберите продавца</option>' + "".join(
+    seller_options = '<option value="">Select a seller</option>' + "".join(
         f'<option value="{r["student_id"]}">{e(r["full_name"])}</option>' for r in students
     )
-    category_options = '<option value="">Выберите категорию</option>' + "".join(
+    category_options = '<option value="">Select a category</option>' + "".join(
         f'<option value="{r["category_id"]}">{e(CATEGORY_LABELS.get(r["category_name"], r["category_name"]))}</option>' for r in categories
     )
     condition_options = "".join(
         f'<option value="{e(value)}">{e(label)}</option>' for value, label in CONDITION_LABELS.items()
     )
-    return f"""<section class="panel form-panel"><h2>Разместить объявление</h2>
-<p class="form-intro">Расскажите о вещи - покупатели увидят её в каталоге.</p>
+    return f"""<section class="panel form-panel"><h2>List an item</h2>
+<p class="form-intro">Add a few details so other students can find it.</p>
 <form method="post" action="/listing"><div class="form-grid">
-<div class="wide"><label for="seller">Кто продаёт</label><select id="seller" name="seller_id" required>{seller_options}</select></div>
-<div class="wide"><label for="category">Категория</label><select id="category" name="category_id" required>{category_options}</select></div>
-<div class="wide"><label for="name">Название</label><input id="name" name="product_name" maxlength="120" placeholder="Например, учебник по программированию" required></div>
-<div class="wide"><label for="description">Описание</label><textarea id="description" name="description" placeholder="Состояние, комплектность и другие детали" required></textarea></div>
-<div><label for="price">Цена, ₸</label><input id="price" name="price" type="number" min="1" step="0.01" placeholder="3500" required></div>
-<div><label for="condition">Состояние</label><select id="condition" name="item_condition">{condition_options}</select></div>
-</div><div class="form-actions"><button type="submit">Опубликовать объявление</button></div>
-<p class="safe-note">Укажите честную цену и опишите состояние товара. Объявление можно будет сразу увидеть в каталоге.</p></form></section>"""
+<div class="wide"><label for="seller">Seller</label><select id="seller" name="seller_id" required>{seller_options}</select></div>
+<div class="wide"><label for="category">Category</label><select id="category" name="category_id" required>{category_options}</select></div>
+<div class="wide"><label for="name">Item name</label><input id="name" name="product_name" maxlength="120" placeholder="For example, programming textbook" required></div>
+<div class="wide"><label for="description">Description</label><textarea id="description" name="description" placeholder="Condition, included accessories, and other details" required></textarea></div>
+<div><label for="price">Price, ₸</label><input id="price" name="price" type="number" min="1" step="0.01" placeholder="3500" required></div>
+<div><label for="condition">Condition</label><select id="condition" name="item_condition">{condition_options}</select></div>
+</div><div class="form-actions"><button type="submit">Publish listing</button></div>
+<p class="safe-note">Set a fair price and describe the item's condition. Your listing will appear in the catalog.</p></form></section>"""
 
 
 class MarketplaceHandler(BaseHTTPRequestHandler):
@@ -226,18 +217,18 @@ class MarketplaceHandler(BaseHTTPRequestHandler):
                     JOIN products p ON p.product_id = pu.product_id
                     JOIN students seller ON seller.student_id = p.seller_id
                     ORDER BY pu.purchase_date DESC, pu.purchase_id DESC""").fetchall()
-                body = '<section class="panel"><div class="panel-heading"><div><div class="eyebrow">Ваш маркет</div><h2>История покупок</h2></div><span class="tag">' + e(plural_ru(len(rows), 'покупка', 'покупки', 'покупок')) + '</span></div>'
+                body = '<section class="panel"><div class="panel-heading"><div><div class="eyebrow">Your marketplace</div><h2>Purchase history</h2></div><span class="tag">' + e(count_label(len(rows), 'purchase', 'purchases')) + '</span></div>'
                 if rows:
-                    body += '<table class="sales-table"><thead><tr><th>Товар</th><th>Покупатель</th><th>Продавец</th><th>Цена</th><th>Оплата</th><th>Дата</th></tr></thead><tbody>'
-                    body += "".join(f"<tr><td>{e(r['product_name'])}</td><td>{e(r['buyer'])}</td><td>{e(r['seller'])}</td><td>{money(r['agreed_price'])}</td><td>{'Наличные' if r['payment_method'] == 'Cash' else 'Перевод'}</td><td>{e(r['purchase_date'])}</td></tr>" for r in rows)
+                    body += '<table class="sales-table"><thead><tr><th>Item</th><th>Buyer</th><th>Seller</th><th>Price</th><th>Payment</th><th>Date</th></tr></thead><tbody>'
+                    body += "".join(f"<tr><td>{e(r['product_name'])}</td><td>{e(r['buyer'])}</td><td>{e(r['seller'])}</td><td>{money(r['agreed_price'])}</td><td>{'Cash' if r['payment_method'] == 'Cash' else 'Bank transfer'}</td><td>{e(r['purchase_date'])}</td></tr>" for r in rows)
                     body += "</tbody></table>"
                 else:
-                    body += '<div class="empty"><div class="empty-icon">↗</div><strong>Покупок пока нет</strong><br><span class="muted">Когда товар купят, запись появится здесь.</span></div>'
+                    body += '<div class="empty"><div class="empty-icon">↗</div><strong>No purchases yet</strong><br><span class="muted">Completed purchases will appear here.</span></div>'
                 body += "</section>"
-                self.send_page(page("История покупок", body))
+                self.send_page(page("Purchase history", body))
                 return
             if parsed.path != "/":
-                self.send_page(page("Страница не найдена", '<section class="panel"><h2>Такой страницы нет</h2><p>Вернитесь в каталог и продолжайте покупки.</p><a class="button" href="/">Открыть каталог</a></section>'), 404)
+                self.send_page(page("Page not found", '<section class="panel"><h2>Page not found</h2><p>Return to the catalog to keep browsing.</p><a class="button" href="/">Open catalog</a></section>'), 404)
                 return
 
             search = params.get("q", [""])[0].strip()
@@ -272,15 +263,15 @@ class MarketplaceHandler(BaseHTTPRequestHandler):
                         f'<option value="{p["student_id"]}">{e(p["full_name"])}</option>'
                         for p in people if p["student_id"] != r["seller_id"]
                     )
-                    actions = f'''<details class="buy"><summary>Оформить покупку</summary>
+                    actions = f'''<details class="buy"><summary>Buy this item</summary>
                     <form method="post" action="/purchase" class="buy-fields"><input type="hidden" name="product_id" value="{r['product_id']}">
-                    <select name="buyer_id" aria-label="Кто покупает" required>{buyers}</select>
-                    <select name="payment_method" aria-label="Способ оплаты"><option value="Cash">Наличные</option><option value="Bank Transfer">Перевод</option></select>
-                    <button type="submit">Подтвердить покупку</button></form></details>'''
+                    <select name="buyer_id" aria-label="Buyer" required>{buyers}</select>
+                    <select name="payment_method" aria-label="Payment method"><option value="Cash">Cash</option><option value="Bank Transfer">Bank transfer</option></select>
+                    <button type="submit">Confirm purchase</button></form></details>'''
                 cards.append(f'''<article class="listing"><div class="listing-top"><div><div class="tags"><span class="tag">{e(CATEGORY_LABELS.get(r['category_name'], r['category_name']))}</span><span class="tag">{e(CONDITION_LABELS.get(r['item_condition'], r['item_condition']))}</span></div><h3 style="margin-top:9px">{e(r['product_name'])}</h3></div><span class="{badge}">{e(STATUS_LABELS.get(r['status'], r['status']))}</span></div>
-                    <div class="description">{e(r['description'])}</div><div class="card-bottom"><div><div class="price">{money(r['price'])}</div><div class="seller">Продавец: {e(r['seller'])}</div></div></div>{actions}</article>''')
-            items = "".join(cards) or '<div class="empty"><div class="empty-icon">⌕</div><strong>Ничего не нашлось</strong><br><span class="muted">Попробуйте изменить запрос или выбрать другую категорию.</span></div>'
-            category_options = '<option value="">Все категории</option>' + "".join(
+                    <div class="description">{e(r['description'])}</div><div class="card-bottom"><div><div class="price">{money(r['price'])}</div><div class="seller">Seller: {e(r['seller'])}</div></div></div>{actions}</article>''')
+            items = "".join(cards) or '<div class="empty"><div class="empty-icon">⌕</div><strong>No listings found</strong><br><span class="muted">Try another search or choose a different category.</span></div>'
+            category_options = '<option value="">All categories</option>' + "".join(
                 f'<option value="{r["category_id"]}"' + (' selected' if str(r["category_id"]) == category_id else '') +
                 f'>{e(CATEGORY_LABELS.get(r["category_name"], r["category_name"]))}</option>' for r in categories
             )
@@ -288,14 +279,14 @@ class MarketplaceHandler(BaseHTTPRequestHandler):
                 f'<option value="{value}"' + (' selected' if status == value else '') + f'>{label}</option>'
                 for value, label in STATUS_LABELS.items()
             )
-            body = f'''<section class="hero"><div><div class="eyebrow">Покупай рядом, продавай просто</div><h1>Найди нужное для учёбы</h1><p>Учебники, техника и вещи для комнаты от студентов твоего университета.</p></div>
-            <div class="stats"><span class="stat"><b>{counts.get('Available',0)}</b> в продаже</span><span class="stat"><b>{counts.get('Sold',0)}</b> {e(plural_word(counts.get('Sold',0), 'продажа', 'продажи', 'продаж'))}</span></div></section>
-            <div class="workspace"><section class="panel"><div class="panel-heading"><div><div class="eyebrow">Студенческие объявления</div><h2>Каталог товаров</h2></div><span class="subtle">{e(plural_ru(len(rows), 'объявление', 'объявления', 'объявлений'))}</span></div>
-            <form class="filters" method="get" action="/"><input name="q" placeholder="Название, описание или продавец" value="{e(search)}" aria-label="Поиск по объявлениям">
-            <select name="category" aria-label="Категория">{category_options}</select><select name="status" aria-label="Статус объявления">{status_options}</select><button type="submit">Найти</button></form>
+            body = f'''<section class="hero"><div><div class="eyebrow">Buy nearby, sell with ease</div><h1>Find what you need for school</h1><p>Textbooks, electronics, and dorm essentials listed by students at your university.</p></div>
+            <div class="stats"><span class="stat"><b>{counts.get('Available',0)}</b> available</span><span class="stat"><b>{counts.get('Sold',0)}</b> sold</span></div></section>
+            <div class="workspace"><section class="panel"><div class="panel-heading"><div><div class="eyebrow">Student listings</div><h2>Marketplace catalog</h2></div><span class="subtle">{e(count_label(len(rows), 'listing'))}</span></div>
+            <form class="filters" method="get" action="/"><input name="q" placeholder="Search by item, description, or seller" value="{e(search)}" aria-label="Search listings">
+            <select name="category" aria-label="Category">{category_options}</select><select name="status" aria-label="Listing status">{status_options}</select><button type="submit">Search</button></form>
             <div class="catalog">{items}</div></section>{listing_form(conn)}</div>'''
             notice = params.get("notice", [""])[0]
-            self.send_page(page("Каталог товаров", body, notice))
+            self.send_page(page("Marketplace catalog", body, notice))
         finally:
             conn.close()
 
@@ -314,9 +305,9 @@ class MarketplaceHandler(BaseHTTPRequestHandler):
                     conn.execute("INSERT INTO products (seller_id, category_id, product_name, description, price, item_condition) VALUES (?, ?, ?, ?, ?, ?)",
                                  (seller_id, category_id, name, description, price, condition))
                 except (KeyError, ValueError, OverflowError, sqlite3.IntegrityError):
-                    self.send_page(page("Ошибка объявления", '<section class="panel"><h2>Не удалось разместить объявление</h2><p>Проверьте обязательные поля и укажите цену больше нуля.</p><a class="button" href="/">Вернуться в каталог</a></section>'), 400)
+                    self.send_page(page("Invalid listing", '<section class="panel"><h2>Listing could not be published</h2><p>Check the required fields and enter a price above zero.</p><a class="button" href="/">Back to catalog</a></section>'), 400)
                     return
-                self.redirect("/?notice=" + quote("Объявление опубликовано"))
+                self.redirect("/?notice=" + quote("Listing published"))
                 return
             if self.path == "/purchase":
                 try:
@@ -327,24 +318,24 @@ class MarketplaceHandler(BaseHTTPRequestHandler):
                     conn.execute("BEGIN IMMEDIATE")
                     product = conn.execute("SELECT * FROM products WHERE product_id=?", (product_id,)).fetchone()
                     if not product or product["status"] != "Available":
-                        raise ValueError("Это объявление уже недоступно.")
+                        raise ValueError("This listing is no longer available.")
                     if product["seller_id"] == buyer_id:
-                        raise ValueError("Нельзя купить собственное объявление.")
+                        raise ValueError("You cannot buy your own listing.")
                     if not conn.execute("SELECT 1 FROM students WHERE student_id=?", (buyer_id,)).fetchone():
-                        raise ValueError("Выберите покупателя из списка.")
+                        raise ValueError("Select a buyer from the list.")
                     conn.execute("INSERT INTO purchases (buyer_id, product_id, agreed_price, payment_method) VALUES (?, ?, ?, ?)",
                                  (buyer_id, product_id, product["price"], payment))
                     changed = conn.execute("UPDATE products SET status='Sold' WHERE product_id=? AND status='Available'", (product_id,)).rowcount
                     if changed != 1:
-                        raise ValueError("Это объявление уже недоступно.")
+                        raise ValueError("This listing is no longer available.")
                     conn.commit()
                 except (KeyError, ValueError, sqlite3.IntegrityError, sqlite3.OperationalError) as exc:
                     if conn.in_transaction:
                         conn.rollback()
-                    message = str(exc) or "Не удалось оформить покупку."
+                    message = str(exc) or "The purchase could not be completed."
                     self.redirect("/?notice=" + quote(message))
                     return
-                self.redirect("/?notice=" + quote("Покупка успешно оформлена"))
+                self.redirect("/?notice=" + quote("Purchase completed successfully"))
                 return
             self.send_page(page("Not found", '<section class="panel"><h2>Unknown action</h2><a href="/">Return to marketplace</a></section>'), 404)
         finally:

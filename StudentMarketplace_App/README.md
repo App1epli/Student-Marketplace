@@ -1,53 +1,53 @@
 # Student Marketplace
 
-Учебный проект студенческого маркетплейса: русскоязычное веб-приложение, заполненная SQLite-база и PostgreSQL-скрипт для практического задания.
+A student-to-student marketplace project with an English web interface, a populated SQLite database, and a PostgreSQL script for the classroom assignment.
 
-## Команда
+## Team
 
-| Студент | ID | Роль в проекте |
+| Student | ID | Project responsibility |
 |---|---|---|
-| Tynyshtyk Alis | `24B032081` | Анализ системы и требования; основное действие и таблицы |
-| Medetkhan Aruzhan | `24B070509` | Разработка; первичные ключи и правила данных |
-| Alkhan Yerdaulet | `24B031631` | Тестирование и интеграция; внешние ключи и связи |
-| Tanirberdi Daulet | `24B032053` | Данные и база; ER-диаграмма и повторяющиеся данные |
-| Sembayev Zharas | `24B032016` | Архитектура и безопасность; SQL, решения и транзакции |
+| Tynyshtyk Alis | `24B032081` | Systems analysis and requirements; main action and tables |
+| Medetkhan Aruzhan | `24B070509` | Application development; primary keys and data rules |
+| Alkhan Yerdaulet | `24B031631` | Testing and integration; foreign keys and relationships |
+| Tanirberdi Daulet | `24B032053` | Data and database; ERD and repeated data |
+| Sembayev Zharas | `24B032016` | Architecture and security; SQL, decisions, and transactions |
 
-## Как запустить приложение
+## Run the application
 
-Нужен Python 3.9 или новее. Внешние библиотеки устанавливать не нужно.
+Python 3.9 or later is required. The application uses only the Python standard library; no packages need to be installed.
 
 ### Windows
 
-1. Распакуйте проект, если получили его архивом.
-2. Откройте папку `StudentMarketplace_App`.
-3. Дважды щёлкните `run_app.bat` либо откройте PowerShell в этой папке и выполните:
+1. Extract the project archive if needed.
+2. Open the `StudentMarketplace_App` folder.
+3. Double-click `run_app.bat`, or open PowerShell in that folder and run:
 
    ```powershell
    python app.py
    ```
 
-4. Откройте в браузере [http://127.0.0.1:8000](http://127.0.0.1:8000).
-5. Чтобы остановить сайт, нажмите `Ctrl+C` в окне, где запущено приложение.
+4. Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser.
+5. Press `Ctrl+C` in the app window to stop the server.
 
-При первом запуске приложение само создаст базу `database/student_marketplace.db` и добавит демонстрационные данные. Чтобы подготовить базу отдельно, выполните `python app.py --init-db`, затем запустите `python app.py`.
+On the first launch, the app creates `database/student_marketplace.db` and inserts the sample data. To initialize the database separately, run `python app.py --init-db`, then start the app with `python app.py`.
 
-## Что умеет приложение
+## Features
 
-- показывает объявления карточками;
-- ищет по названию, описанию и продавцу;
-- фильтрует по категории и статусу;
-- позволяет добавлять объявления;
-- оформляет покупку в транзакции и защищает от повторной продажи и покупки своего объявления;
-- показывает историю завершённых покупок;
-- адаптируется к экрану телефона и компьютера.
+- Browse listings as product cards.
+- Search by product name, description, category, or seller.
+- Filter listings by category and status.
+- Publish a listing with required-field and price validation.
+- Purchase an available item with transaction protection against duplicate sales and self-purchases.
+- View completed purchases.
+- Responsive layout for desktop and mobile screens.
 
-## Структура папки
+## Project files
 
 ```text
 StudentMarketplace_App/
-├── app.py                 # веб-приложение и создание базы
-├── run_app.bat            # запуск в Windows двойным щелчком
-├── README.md              # этот файл
+├── app.py                 # Web application and database setup
+├── run_app.bat            # Windows launcher
+├── README.md              # This guide
 ├── database/
 │   └── student_marketplace.db
 └── deliverables/
@@ -56,10 +56,10 @@ StudentMarketplace_App/
     └── StudentMarketplace_Full_Project.zip
 ```
 
-В архиве лежит копия полного проекта. При повторной упаковке не включайте сам архив внутрь себя.
+The full project ZIP contains a copy of the application and deliverables. Do not include the ZIP inside itself when rebuilding the archive.
 
-## PostgreSQL для сдачи задания
+## PostgreSQL assignment
 
-`deliverables/Student_Marketplace_Task09.sql` предназначен для запуска в новой пустой базе PostgreSQL через pgAdmin или `psql`. После выполнения проверьте таблицы и результат SELECT-запроса, затем сохраните скриншоты для преподавателя.
+Run `deliverables/Student_Marketplace_Task09.sql` once in a new, empty PostgreSQL database using pgAdmin or `psql`. Check the created tables and SELECT output, then capture screenshots for the instructor.
 
-Веб-приложение использует SQLite для простого локального запуска. SQLite-база — рабочая база демонстрационного приложения; она не заменяет запуск PostgreSQL-скрипта, который требуется заданием.
+The web app uses SQLite so it can run locally without a separate PostgreSQL server. Its SQLite database is the app's working database; it does not replace running the PostgreSQL assignment script.
