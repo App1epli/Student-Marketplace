@@ -80,12 +80,13 @@ CREATE INDEX IF NOT EXISTS idx_purchases_purchase_date ON purchases(purchase_dat
 """
 
 STUDENTS = [
-    ("2026001", "Dana Omar", "dana.omar@example.edu", "Information Systems", 2),
-    ("2026002", "Ayan Bek", "ayan.bek@example.edu", "Computer Science", 3),
-    ("2026003", "Amir Sadyk", "amir.sadyk@example.edu", "Business Informatics", 1),
-    ("2026004", "Aisha Nurlan", "aisha.nurlan@example.edu", "Information Systems", 2),
-    ("2026005", "Dias Kairat", "dias.kairat@example.edu", "Computer Science", 4),
+    ("2026001", "Tynyshtyk Alis", "dana.omar@example.edu", "Information Systems", 2),
+    ("2026002", "Medetkhan Aruzhan", "ayan.bek@example.edu", "Computer Science", 3),
+    ("2026003", "Alkhan Yerdaulet", "amir.sadyk@example.edu", "Business Informatics", 1),
+    ("2026004", "Tanirberdi Daulet", "aisha.nurlan@example.edu", "Information Systems", 2),
+    ("2026005", "Sembayev Zharas", "dias.kairat@example.edu", "Computer Science", 4),
 ]
+TEAM_STUDENT_NAMES = {student_number: full_name for student_number, full_name, *_ in STUDENTS}
 CATEGORIES = [
     ("Electronics", "Small personal electronics and accessories"),
     ("Books and Study", "Textbooks, notes, and study supplies"),
@@ -171,7 +172,7 @@ def connect() -> DatabaseConnection:
         raw = psycopg2.connect(DATABASE_URL, connect_timeout=5)
     except psycopg2.OperationalError as exc:
         raise RuntimeError(
-            "Cannot connect to PostgreSQL. Start it with 'docker compose up -d db' "
+            "Cannot connect to PostgreSQL. Start the PostgreSQL Windows service "
             "and check DATABASE_URL in .env. Details: " + str(exc).splitlines()[0]
         ) from exc
     return DatabaseConnection(raw)
@@ -182,6 +183,9 @@ def initialize_database() -> None:
     try:
         conn.executescript(POSTGRES_SCHEMA)
         conn.commit()
+        # Keep seller names aligned with the project team in databases created earlier.
+        for student_number, full_name in TEAM_STUDENT_NAMES.items():
+            conn.execute("UPDATE students SET full_name=? WHERE student_number=?", (full_name, student_number))
         if conn.execute("SELECT COUNT(*) FROM students").fetchone()[0] == 0:
             conn.executemany(
                 "INSERT INTO students (student_number, full_name, email, study_program, study_year) VALUES (?, ?, ?, ?, ?)",
@@ -481,3 +485,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
