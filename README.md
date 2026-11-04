@@ -1,65 +1,88 @@
 # Student Marketplace
 
-A student-to-student marketplace project with an English web interface, a populated SQLite database, and a PostgreSQL script for the classroom assignment.
+A student-to-student marketplace with an English web interface and a PostgreSQL database. Students can browse, search, and filter listings, publish items, record purchases, and review purchase history.
 
 ## Team
 
 | Student | ID | Project responsibility |
 |---|---|---|
-| Tynyshtyk Alis | `24B032081` | Systems analysis and requirements; main action and tables |
+| Tynyshtyk Alis | `24B032081` | Systems analysis and requirements; main actions and tables |
 | Medetkhan Aruzhan | `24B070509` | Application development; primary keys and data rules |
 | Alkhan Yerdaulet | `24B031631` | Testing and integration; foreign keys and relationships |
 | Tanirberdi Daulet | `24B032053` | Data and database; ERD and repeated data |
 | Sembayev Zharas | `24B032016` | Architecture and security; SQL, decisions, and transactions |
 
-## Run the application
+## Requirements
 
-Python 3.9 or later is required. The application uses only the Python standard library; no packages need to be installed.
+- Python 3.9 or later
+- PostgreSQL 14+ installed and running
+- Docker Desktop is optional
 
-### Windows
+## Run without Docker
 
-1. Extract the project archive if needed.
-2. Open the `StudentMarketplace_App` folder.
-3. Double-click `run_app.bat`, or open PowerShell in that folder and run:
+Install PostgreSQL for Windows and start its PostgreSQL service. In pgAdmin, connect as the PostgreSQL administrator, open the Query Tool on the `postgres` database, and create the app role and database:
 
-   ```powershell
-   python app.py
-   ```
+```sql
+CREATE ROLE marketplace WITH LOGIN PASSWORD 'marketplace';
+CREATE DATABASE student_marketplace OWNER marketplace;
+```
 
-4. Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser.
-5. Press `Ctrl+C` in the app window to stop the server.
+In PowerShell, from the project root:
 
-On the first launch, the app creates `database/student_marketplace.db` and inserts the sample data. To initialize the database separately, run `python app.py --init-db`, then start the app with `python app.py`.
+```powershell
+Copy-Item .env.example .env
+python -m pip install -r requirements.txt
+python app.py --init-db
+python app.py
+```
+
+Open <http://127.0.0.1:8000>. The app creates the four tables and loads sample data on first launch: five students, four categories, 26 listings (including 20 added listings), and one example purchase. On an existing project database, it adds any missing sample listings without duplicating them. `--init-db` is optional; it prints table record counts. Stop the app with `Ctrl+C`.
+
+On Windows, `run_app.bat` installs the Python dependency and starts the app. It expects the local PostgreSQL service to be running and `.env` to contain the right connection string. The default `.env.example` values match the SQL role and database shown above.
+
+For a different PostgreSQL user, password, host, or database, edit `DATABASE_URL` in `.env`. Example: `postgresql://marketplace:your-password@localhost:5432/student_marketplace`.
+
+## Optional Docker setup
+
+If Docker Desktop is installed, Compose can start a PostgreSQL instance for the project instead of installing PostgreSQL directly:
+
+```powershell
+Copy-Item .env.example .env
+python -m pip install -r requirements.txt
+docker compose up -d --wait db
+python app.py
+```
+
+Stop the container with `docker compose down`; its data remains in the named volume.
+
+`app.py` initializes tables and sample records on first run. Existing tables and data are retained on later launches. `.env` is excluded from Git; never commit real database passwords.
 
 ## Features
 
-- Browse listings as product cards.
-- Search by product name, description, category, or seller.
-- Filter listings by category and status.
-- Publish a listing with required-field and price validation.
-- Purchase an available item with transaction protection against duplicate sales and self-purchases.
-- View completed purchases.
-- Responsive layout for desktop and mobile screens.
+- Browse listings, with search by item, description, category, or seller.
+- Filter by category and listing status.
+- Publish listings with required-field and price validation.
+- Record purchases in an atomic database transaction. PostgreSQL locks a listing during purchase to prevent concurrent duplicate sales and self-purchases.
+- View purchase history.
+- Responsive English interface for desktop and mobile.
+- PostgreSQL primary keys, foreign keys, uniqueness rules, and check constraints.
 
-## Project files
+## Project layout
 
 ```text
-StudentMarketplace_App/
-├── app.py                 # Web application and database setup
-├── run_app.bat            # Windows launcher
-├── README.md              # This guide
-├── database/
-│   └── student_marketplace.db
+.
+├── app.py
+├── docker-compose.yml
+├── requirements.txt
+├── .env.example
+├── run_app.bat
+├── README.md
 └── deliverables/
     ├── Student_Marketplace_Task09.sql
     ├── StudentMarketplace_Team_StudentMarketplace_Task09.docx
     └── StudentMarketplace_Full_Project.zip
 ```
 
-The full project ZIP contains a copy of the application and deliverables. Do not include the ZIP inside itself when rebuilding the archive.
+## Assignment SQL
 
-## PostgreSQL assignment
-
-Run `deliverables/Student_Marketplace_Task09.sql` once in a new, empty PostgreSQL database using pgAdmin or `psql`. Check the created tables and SELECT output, then capture screenshots for the instructor.
-
-The web app uses SQLite so it can run locally without a separate PostgreSQL server. Its SQLite database is the app's working database; it does not replace running the PostgreSQL assignment script.
+`deliverables/Student_Marketplace_Task09.sql` is the standalone PostgreSQL assignment script. Run it in a new, empty practice database with pgAdmin or `psql`. The web app connects to PostgreSQL directly and initializes the same marketplace tables automatically; you do not need to run the assignment script for the app.

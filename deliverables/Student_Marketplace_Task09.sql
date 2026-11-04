@@ -40,6 +40,10 @@ CREATE TABLE purchases (
     payment_method VARCHAR(20) NOT NULL CHECK (payment_method IN ('Cash', 'Bank Transfer'))
 );
 
+CREATE INDEX idx_products_status_category ON products(status, category_id);
+CREATE INDEX idx_products_seller ON products(seller_id);
+CREATE INDEX idx_purchases_purchase_date ON purchases(purchase_date DESC);
+
 INSERT INTO students (student_id, student_number, full_name, email, study_program, study_year) VALUES
 (1, '2026001', 'Dana Omar', 'dana.omar@example.edu', 'Information Systems', 2),
 (2, '2026002', 'Ayan Bek', 'ayan.bek@example.edu', 'Computer Science', 3),
@@ -60,6 +64,29 @@ INSERT INTO products (product_id, seller_id, category_id, product_name, descript
 (4, 3, 3, 'Desk Lamp', 'Adjustable LED desk lamp for a study desk.', 6000.00, 'Good', 'Available'),
 (5, 2, 4, 'Campus Backpack', 'Everyday backpack with laptop sleeve.', 4000.00, 'Fair', 'Sold'),
 (6, 5, 3, 'Laptop Stand', 'Foldable aluminium laptop stand.', 7000.00, 'New', 'Removed');
+
+-- Twenty additional student listings for a populated marketplace demo.
+INSERT INTO products (product_id, seller_id, category_id, product_name, description, price, item_condition, status) VALUES
+(7, 4, 1, 'USB-C Hub', 'Seven-port USB-C hub with HDMI and USB-A connections.', 8500.00, 'Good', 'Available'),
+(8, 5, 1, 'Bluetooth Headphones', 'Over-ear wireless headphones with a charging cable.', 14500.00, 'Like New', 'Available'),
+(9, 3, 1, 'Mechanical Keyboard', 'Compact mechanical keyboard with brown switches.', 18000.00, 'Good', 'Available'),
+(10, 1, 1, 'Portable SSD 500GB', 'Portable solid-state drive with USB-C cable.', 22000.00, 'Like New', 'Available'),
+(11, 2, 1, 'Scientific Calculator FX-991', 'Programmable-free scientific calculator for coursework.', 6500.00, 'Good', 'Available'),
+(12, 3, 2, 'Discrete Mathematics Notes', 'Printed lecture notes with a spiral binding.', 1800.00, 'Good', 'Available'),
+(13, 4, 2, 'Academic English Workbook', 'Workbook with a few completed exercises in pencil.', 2200.00, 'Good', 'Available'),
+(14, 5, 2, 'Database Systems Textbook', 'Database design textbook in excellent condition.', 5200.00, 'Like New', 'Available'),
+(15, 2, 2, 'Graph Paper Notebook Set', 'Set of three unused A4 graph-paper notebooks.', 1200.00, 'New', 'Available'),
+(16, 1, 2, 'Computer Networks Handbook', 'Student edition with highlighted reference sections.', 4300.00, 'Fair', 'Available'),
+(17, 5, 3, 'Desk Organiser', 'Wooden desk organiser with compartments for stationery.', 2800.00, 'Good', 'Available'),
+(18, 1, 3, 'Electric Kettle 1.5L', 'Compact electric kettle, cleaned and working.', 5500.00, 'Good', 'Available'),
+(19, 2, 3, 'LED Study Light', 'Adjustable LED desk light with three brightness levels.', 3900.00, 'Like New', 'Available'),
+(20, 4, 3, 'Storage Box Set', 'Two stackable storage boxes for a dorm room.', 3100.00, 'Good', 'Available'),
+(21, 3, 3, 'Foldable Laundry Basket', 'Lightweight foldable laundry basket.', 1600.00, 'Like New', 'Available'),
+(22, 2, 4, 'Laptop Sleeve 15-inch', 'Padded grey laptop sleeve with a front pocket.', 3000.00, 'Good', 'Available'),
+(23, 3, 4, 'Campus Tote Bag', 'Canvas tote bag with reinforced handles.', 1400.00, 'New', 'Available'),
+(24, 4, 4, 'Winter Scarf', 'Warm navy scarf, gently used and freshly cleaned.', 1900.00, 'Good', 'Available'),
+(25, 5, 4, 'Sports Backpack', 'Lightweight backpack suitable for gym clothes and books.', 4600.00, 'Fair', 'Available'),
+(26, 1, 4, 'Rain Jacket', 'Packable waterproof jacket, size M.', 7200.00, 'Like New', 'Available');
 
 INSERT INTO purchases (purchase_id, buyer_id, product_id, agreed_price, payment_method) VALUES
 (1, 4, 5, 3800.00, 'Cash');
