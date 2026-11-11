@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <div class="panel-heading"><div><div class="eyebrow">Student messages</div><h2>Messages</h2></div><span class="subtle">{{ rows|length }} conversation{{ '' if rows|length == 1 else 's' }}</span></div>
+  <div class="catalog">
+  {% for r in rows %}
+  <article class="listing">
+    <h3>{{ r.product_name }}</h3>
+    <div class="seller">Buyer: {{ r.buyer_name }} · Seller: {{ r.seller_name }}</div>
+    <p>{{ r.last_message or "No messages yet" }}</p>
+    <a class="button" href="{{ url_for('messaging.chat', conversation_id=r.conversation_id) }}">Open conversation</a>
+  </article>
+  {% else %}
+  <div class="empty"><div class="empty-icon">✉</div><strong>No conversations yet</strong><br><span class="muted">Contact a seller from the catalog to start one.</span></div>
+  {% endfor %}
+  </div>
+  <p><a class="button" href="{{ url_for('catalog') }}">Browse listings</a></p>
+</section>
+{% endblock %}

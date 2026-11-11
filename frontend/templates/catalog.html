@@ -17,6 +17,17 @@
   {% if r.status == 'Available' %}
   <a class="button checkout-link" href="{{ url_for('checkout', product_id=r.product_id) }}">Buy this item <span aria-hidden="true">→</span></a>
   <span class="muted">Demo checkout · no real charges</span>
+  {% if current_user and r.seller_id != current_user.student_id %}
+  <details class="buy"><summary>Contact seller</summary>
+    <form method="post" action="{{ url_for('messaging.start') }}" style="margin-top:10px">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="product_id" value="{{ r.product_id }}">
+      <button type="submit">Open chat</button>
+    </form>
+  </details>
+  {% elif not current_user %}
+  <span class="muted"><a href="{{ url_for('auth.login') }}">Log in</a> to message the seller</span>
+  {% endif %}
   {% endif %}
 </article>
 {% else %}

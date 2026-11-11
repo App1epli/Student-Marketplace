@@ -7,6 +7,7 @@
 <section class="panel checkout-panel">
 {% if product.status == 'Available' %}
 <form method="post" action="{{ url_for('checkout_submit', product_id=product.product_id) }}" id="checkout-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="payment_reference" value="{{ reference }}">
   <input type="hidden" name="payment_method" value="Demo Card">
   <input type="hidden" name="card_id" id="card-id" value="">

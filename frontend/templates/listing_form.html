@@ -1,6 +1,6 @@
 <section class="panel form-panel"><h2>List an item</h2>
 <p class="form-intro">Add a few details so other students can find it.</p>
-<form method="post" action="/listing"><div class="form-grid">
+<form method="post" action="/listing"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div class="form-grid">
 <div class="wide"><label for="seller">Seller</label><select id="seller" name="seller_id" required><option value="">Select a seller</option>{% for p in people %}<option value="{{ p.student_id }}">{{ p.full_name }}</option>{% endfor %}</select></div>
 <div class="wide"><label for="category">Category</label><select id="category" name="category_id" required><option value="">Select a category</option>{% for c in categories %}<option value="{{ c.category_id }}">{{ c.category_name }}</option>{% endfor %}</select></div>
 <div class="wide"><label for="name">Item name</label><input id="name" name="product_name" maxlength="120" placeholder="For example, programming textbook" required></div>

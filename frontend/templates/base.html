@@ -6,12 +6,14 @@
   <meta name="theme-color" content="#142d44">
   <title>{{ title }} | Student Marketplace</title>
   <link rel="stylesheet" href="/static/styles.css">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
 <header><div class="topbar"><a class="brand" href="/"><span class="brand-mark">SM</span><span><span class="brand-title">Student Marketplace</span><br><span class="brand-sub">Good items, new owners</span></span></a><span class="demo-pill">Class project</span></div></header>
 <main>
   {% if notice %}<div class="notice" role="status"><span class="notice-icon">✓</span><span>{{ notice }}</span></div>{% endif %}
-  <nav class="nav"><a {% if request.path == '/' %}class="active"{% endif %} href="/">Browse</a><a {% if request.path == '/sales' %}class="active"{% endif %} href="/sales">Purchase history</a></nav>
+  <nav class="nav"><a {% if request.path == '/' %}class="active"{% endif %} href="/">Browse</a><a {% if request.path == '/sales' %}class="active"{% endif %} href="/sales">Purchase history</a>{% if current_user %}<a {% if request.path.startswith('/messages') %}class="active"{% endif %} href="{{ url_for('messaging.inbox') }}">Messages</a>{% endif %}</nav>
+  <nav class="nav" style="margin-top:-10px">{% if current_user %}<span class="subtle">Logged in as {{ current_user.full_name }}</span><form method="post" action="{{ url_for('auth.logout') }}" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="link-button">Log out</button></form>{% else %}<a href="{{ url_for('auth.login') }}">Log in</a><a href="{{ url_for('auth.register') }}">Create account</a>{% endif %}</nav>
   {% block content %}{% endblock %}
   <footer>Classroom demo. Sample marketplace accounts and listings are fictional.</footer>
 </main>

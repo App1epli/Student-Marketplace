@@ -11,7 +11,9 @@ from pathlib import Path
 from uuid import uuid4
 
 from flask import Flask, g, redirect, render_template, request, send_from_directory, url_for
+from flask_wtf.csrf import CSRFProtect
 
+from backend import auth, messaging
 from backend.database import connect, initialize_database, migrate_database, psycopg2
 from backend.payments import CheckoutError, complete_purchase, demo_buyer_id
 from backend.cards import add_card, get_card
@@ -19,6 +21,12 @@ from backend.cards import add_card, get_card
 ROOT = Path(__file__).resolve().parents[1]
 app = Flask(__name__, template_folder=str(ROOT / "frontend/templates"), static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 20_000
+app.secret_key = os.environ.get("SECRET_KEY")
+if not app.secret_key:
+    raise RuntimeError("Set SECRET_KEY in the environment (see .env.example). Never commit a real value.")
+csrf = CSRFProtect(app)
+app.register_blueprint(auth.bp)
+app.register_blueprint(messaging.bp)
 CONDITIONS = ("New", "Like New", "Good", "Fair")
 STATUSES = ("Available", "Sold", "Removed", "All")
 
