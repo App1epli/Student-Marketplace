@@ -3,20 +3,35 @@ from __future__ import annotations
 
 import argparse
 import os
+import hashlib
+import re
+import secrets
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from uuid import uuid4
 
-from flask import Flask, redirect, render_template, request, send_from_directory, url_for
+from flask import Flask, g, redirect, render_template, request, send_from_directory, url_for
 
 from backend.database import connect, initialize_database, migrate_database, psycopg2
 from backend.payments import CheckoutError, complete_purchase, demo_buyer_id
+from backend.cards import add_card, get_card
 
 ROOT = Path(__file__).resolve().parents[1]
 app = Flask(__name__, template_folder=str(ROOT / "frontend/templates"), static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 20_000
 CONDITIONS = ("New", "Like New", "Good", "Fair")
 STATUSES = ("Available", "Sold", "Removed", "All")
+
+
+def wallet_hash():
+    """Opaque guest wallet cookie; no account, signing key or client storage needed."""
+    if not hasattr(g, "wallet_token"):
+        token = request.cookies.get("demo_wallet", "")
+        if not re.fullmatch(r"[A-Za-z0-9_-]{43}", token):
+            token = secrets.token_urlsafe(32)
+            g.new_wallet = True
+        g.wallet_token = token
+    return hashlib.sha256(g.wallet_token.encode()).hexdigest()
 
 
 @app.template_filter("money")
@@ -29,6 +44,9 @@ def response_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
     if response.mimetype != "text/css":
         response.headers["Cache-Control"] = "no-store"
+    if getattr(g, "new_wallet", False):
+        response.set_cookie("demo_wallet", g.wallet_token, max_age=30 * 24 * 60 * 60,
+                            httponly=True, secure=request.is_secure or bool(os.environ.get("VERCEL")), samesite="Lax")
     return response
 
 
@@ -101,6 +119,7 @@ def sales():
 
 def checkout_page(product_id, *, error="", status=200, form=None):
     form = form or {}
+    wallet_hash()
     with connect() as conn:
         product = conn.execute("""SELECT p.*, s.full_name AS seller, c.category_name
             FROM products p JOIN students s ON s.student_id=p.seller_id
@@ -129,12 +148,49 @@ def checkout_submit(product_id):
         with connect() as conn:
             reference = complete_purchase(conn, product_id=product_id, buyer_id=demo_buyer_id(request.form),
                 method=request.form.get("payment_method", ""),
+                card_id=request.form.get("card_id"), wallet_hash=wallet_hash(),
                 reference=request.form.get("payment_reference", ""), outcome=request.form.get("demo_result", "approved"))
     except CheckoutError as exc:
         return checkout_page(product_id, error=str(exc), status=exc.status, form=request.form)
     except psycopg2.IntegrityError:
         return checkout_page(product_id, error="The purchase could not be completed. Please refresh and try again.", status=409, form=request.form)
     return redirect(url_for("receipt", reference=reference), code=303)
+
+
+@app.get("/api/demo-card")
+def demo_card():
+    try:
+        with connect() as conn:
+            return {"card": get_card(conn, request.args.get("buyer_id"), wallet_hash())}
+    except CheckoutError as exc:
+        return {"error": str(exc)}, exc.status
+
+
+@app.post("/api/demo-card")
+def demo_card_add():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return {"error": "Send demo card details as JSON."}, 400
+    try:
+        with connect() as conn:
+            card = add_card(conn, data, wallet_hash())
+        return {"card": card}, 201
+    except CheckoutError as exc:
+        return {"error": str(exc)}, exc.status
+
+
+@app.post("/api/demo-card/remove")
+def demo_card_remove():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return {"error": "Select a demo buyer."}, 400
+    try:
+        buyer_id = demo_buyer_id(data)
+        with connect() as conn:
+            conn.execute("DELETE FROM demo_cards WHERE buyer_id=? AND wallet_hash=?", (buyer_id, wallet_hash()))
+        return {"card": None}
+    except CheckoutError as exc:
+        return {"error": str(exc)}, exc.status
 
 
 @app.get("/payments/<uuid:reference>")
@@ -175,24 +231,14 @@ def listing():
 
 @app.post("/purchase")
 def purchase():
-    """Compatibility endpoint for the original cash / bank-transfer forms."""
+    """Old forms must go through the card-required checkout too."""
     try:
-        buyer_id, product_id = int(request.form["buyer_id"]), int(request.form["product_id"])
-        payment = request.form.get("payment_method", "")
-        if (payment not in ("Cash", "Bank Transfer") or not 0 < buyer_id <= 2147483647
-                or not 0 < product_id <= 2147483647):
-            raise ValueError("Select a valid buyer, listing, and payment method.")
-        with connect() as conn:
-            reference = complete_purchase(conn, product_id=product_id, buyer_id=buyer_id,
-                                          method=payment, reference=str(uuid4()))
-            # Legacy forms only record an arrangement; they never simulate payment.
-            conn.execute("UPDATE purchases SET payment_status='Pending' WHERE payment_reference=?", (reference,))
-    except (KeyError, ValueError) as exc:
-        message = str(exc) if isinstance(exc, ValueError) and str(exc) else "Select a valid buyer and listing."
-        return redirect(url_for("catalog", notice=message), code=303)
-    except psycopg2.IntegrityError:
-        return redirect(url_for("catalog", notice="The purchase could not be completed. Please refresh the catalog."), code=303)
-    return redirect(url_for("catalog", notice="Purchase completed successfully"), code=303)
+        product_id = int(request.form.get("product_id", ""))
+        if not 0 < product_id <= 2147483647:
+            raise ValueError
+    except ValueError:
+        return render_template("error.html", title="Invalid item", message="Choose an item from the catalog."), 400
+    return redirect(url_for("checkout", product_id=product_id), code=303)
 
 
 @app.errorhandler(404)
@@ -207,6 +253,8 @@ def database_unavailable(error):
     app.logger.error("Database request failed (%s)", type(error).__name__)
     if request.path == "/api/health":
         return {"status": "unavailable", "database": "unavailable"}, 503
+    if request.path.startswith("/api/"):
+        return {"error": "The database is unavailable. Please try again later."}, 503
     return render_template("error.html", title="Database unavailable",
                            message="The database is unavailable. Check DATABASE_URL and run the database initialization command."), 503
 

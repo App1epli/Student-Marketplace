@@ -59,6 +59,21 @@ class ApplicationTests(unittest.TestCase):
         from decimal import Decimal
         self.assertEqual(web.money(Decimal("1234.50")), "1 234.50 ₸")
 
+    def test_demo_card_validation(self):
+        from backend.cards import validate_demo_card
+        from backend.payments import CheckoutError
+        valid = dict(number="4242 4242 4242 4242", holder_name="Alex Student", expiry="12/29", cvv="123")
+        with patch("backend.cards.current_month", return_value=(2026, 11)):
+            safe = validate_demo_card(valid)
+            self.assertEqual(safe["last4"], "4242")
+            self.assertNotIn("number", safe)
+            self.assertNotIn("cvv", safe)
+            for changes in (dict(number="4111111111111111"), dict(cvv="000"), dict(expiry="10/26"),
+                            dict(expiry="13/29"), dict(holder_name=""), dict(number=4242)):
+                with self.subTest(changes=changes), self.assertRaises(CheckoutError):
+                    validate_demo_card({**valid, **changes})
+            self.assertEqual(validate_demo_card({**valid, "expiry": "11/26"})["expiry_month"], 11)
+
 
 @unittest.skipUnless(os.environ.get("TEST_DATABASE_URL"), "TEST_DATABASE_URL is not set")
 class PostgreSQLTests(unittest.TestCase):
@@ -118,11 +133,13 @@ class PostgreSQLTests(unittest.TestCase):
 
     def test_purchase_and_self_purchase(self):
         product_id = self.create_listing()
-        own = self.client.post("/purchase", data=dict(product_id=product_id, buyer_id=1, payment_method="Cash"))
-        self.assertIn("own", own.location)
-        response = self.client.post("/purchase", data=dict(product_id=product_id, buyer_id=2, payment_method="Cash"))
+        own_form = self.checkout_form(product_id, buyer=1)
+        own = self.client.post(f"/checkout/{product_id}", data=own_form)
+        self.assertEqual(own.status_code, 400)
+        self.assertIn(b"own listing", own.data)
+        form = self.checkout_form(product_id, buyer=2)
+        response = self.client.post(f"/checkout/{product_id}", data=form)
         self.assertEqual(response.status_code, 303)
-        self.assertIn("successfully", response.location)
         with database.connect() as conn:
             self.assertEqual(conn.execute("SELECT status FROM products WHERE product_id=?", (product_id,)).fetchone()[0], "Sold")
         self.assertEqual(self.client.get("/sales").status_code, 200)
@@ -130,23 +147,35 @@ class PostgreSQLTests(unittest.TestCase):
 
     def test_concurrent_purchase_has_one_winner(self):
         product_id = self.create_listing("Concurrent item")
+        forms = [self.checkout_form(product_id, buyer=buyer) for buyer in (2, 3)]
+        cookie = self.client.get_cookie("demo_wallet").value
 
-        def buy(buyer_id):
+        def buy(form):
             with web.app.test_client() as client:
-                return client.post("/purchase", data=dict(product_id=product_id, buyer_id=buyer_id, payment_method="Cash")).location
+                client.set_cookie("demo_wallet", cookie)
+                return client.post(f"/checkout/{product_id}", data=form).status_code
 
         with ThreadPoolExecutor(max_workers=2) as pool:
-            results = list(pool.map(buy, (2, 3)))
-        self.assertEqual(sum("successfully" in result for result in results), 1)
+            results = list(pool.map(buy, forms))
+        self.assertEqual(sorted(results), [303, 409])
         with database.connect() as conn:
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM purchases WHERE product_id=?", (product_id,)).fetchone()[0], 1)
+
+    def add_card(self, client=None, buyer=2, **changes):
+        client = client or self.client
+        from datetime import datetime, timezone
+        expiry = f"12/{(datetime.now(timezone.utc).year + 2) % 100:02}"
+        return client.post("/api/demo-card", json={"buyer_id": str(buyer), "number": "4242 4242 4242 4242",
+            "holder_name": "Alex Student", "expiry": expiry, "cvv": "123", **changes})
 
     def checkout_form(self, product_id, method="Demo Card", outcome="approved", buyer=2):
         response = self.client.get(f"/checkout/{product_id}")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"No real money is charged", response.data)
         token = re.search(rb'name="payment_reference" value="([^"]+)"', response.data).group(1).decode()
-        return dict(payment_reference=token, buyer_id=str(buyer), payment_method=method, demo_result=outcome)
+        saved = self.add_card(buyer=buyer)
+        self.assertEqual(saved.status_code, 201)
+        return dict(payment_reference=token, buyer_id=str(buyer), payment_method=method, demo_result=outcome, card_id=saved.json["card"]["card_id"])
 
     def test_demo_payment_receipt_and_replay(self):
         product_id = self.create_listing("Payment item")
@@ -179,16 +208,16 @@ class PostgreSQLTests(unittest.TestCase):
         form["demo_result"] = "approved"
         self.assertEqual(self.client.post(f"/checkout/{product_id}", data=form).status_code, 303)
 
-    def test_bank_transfer_and_cash_statuses(self):
-        for method, status in (("Bank Transfer", "Demo paid"), ("Cash", "Pending")):
-            with self.subTest(method=method):
-                product_id = self.create_listing(f"{method} item")
-                form = self.checkout_form(product_id, method=method)
-                response = self.client.post(f"/checkout/{product_id}", data=form)
-                self.assertEqual(response.status_code, 303)
-                with database.connect() as conn:
-                    self.assertEqual(conn.execute("SELECT payment_status FROM purchases WHERE product_id=?", (product_id,)).fetchone()[0], status)
-                self.assertIn(status.encode(), self.client.get(response.location).data)
+    def test_cash_and_transfer_cannot_bypass_card_checkout(self):
+        product_id = self.create_listing()
+        form = self.checkout_form(product_id)
+        for method in ("Bank Transfer", "Cash"):
+            self.assertEqual(self.client.post(f"/checkout/{product_id}", data={**form, "payment_method": method}).status_code, 400)
+            response = self.client.post("/purchase", data=dict(product_id=product_id, buyer_id=2, payment_method=method))
+            self.assertEqual(response.status_code, 303)
+            self.assertTrue(response.location.endswith(f"/checkout/{product_id}"))
+        with database.connect() as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM purchases WHERE product_id=?", (product_id,)).fetchone()[0], 0)
 
     def test_checkout_cancel_does_not_purchase(self):
         product_id = self.create_listing("Cancelled item")
@@ -198,6 +227,57 @@ class PostgreSQLTests(unittest.TestCase):
         with database.connect() as conn:
             self.assertEqual(conn.execute("SELECT status FROM products WHERE product_id=?", (product_id,)).fetchone()[0], "Available")
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM purchases WHERE product_id=?", (product_id,)).fetchone()[0], 0)
+
+    def test_no_card_cannot_purchase_even_with_forged_form(self):
+        product_id = self.create_listing()
+        response = self.client.get(f"/checkout/{product_id}")
+        self.assertIn(b"+ Add card", response.data)
+        self.assertRegex(response.get_data(as_text=True), r'id="pay-button"[^>]*disabled')
+        form = dict(buyer_id="2", payment_method="Demo Card", payment_reference=str(uuid.uuid4()))
+        for card_id in ("", str(uuid.uuid4())):
+            response = self.client.post(f"/checkout/{product_id}", data={**form, "card_id": card_id})
+            self.assertEqual(response.status_code, 400)
+        with database.connect() as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM purchases WHERE product_id=?", (product_id,)).fetchone()[0], 0)
+
+    def test_wallet_scope_removal_and_expiry(self):
+        product_id = self.create_listing()
+        form = self.checkout_form(product_id)
+        another_browser = web.app.test_client()
+        self.assertIsNone(another_browser.get("/api/demo-card?buyer_id=2").json["card"])
+        self.assertIsNotNone(self.client.get("/api/demo-card?buyer_id=2").json["card"])
+        self.assertIsNone(self.client.get("/api/demo-card?buyer_id=3").json["card"])
+        self.assertEqual(another_browser.post(f"/checkout/{product_id}", data=form).status_code, 400)
+        self.assertEqual(self.client.post(f"/checkout/{product_id}", data={**form, "buyer_id": "3"}).status_code, 400)
+        another_browser.post("/api/demo-card/remove", json={"buyer_id": "2"})
+        self.assertIsNotNone(self.client.get("/api/demo-card?buyer_id=2").json["card"])
+        with database.connect() as conn:
+            conn.execute("UPDATE demo_cards SET expiry_year=2020 WHERE card_id=?", (form["card_id"],))
+        self.assertTrue(self.client.get("/api/demo-card?buyer_id=2").json["card"]["expired"])
+        self.assertEqual(self.client.post(f"/checkout/{product_id}", data=form).status_code, 400)
+        replacement = self.add_card().json["card"]
+        self.assertFalse(replacement["expired"])
+        self.client.post("/api/demo-card/remove", json={"buyer_id": "2"})
+        self.assertIsNone(self.client.get("/api/demo-card?buyer_id=2").json["card"])
+        self.assertEqual(self.client.post(f"/checkout/{product_id}", data=form).status_code, 400)
+
+    def test_card_storage_contains_no_number_or_cvv(self):
+        response = self.add_card()
+        self.assertEqual(response.status_code, 201)
+        self.assertNotIn(b"4242424242424242", response.data)
+        self.assertNotIn(b'"cvv"', response.data)
+        self.assertNotIn(b'"number"', response.data)
+        cookie = self.client.get_cookie("demo_wallet")
+        self.assertTrue(cookie.http_only)
+        self.assertEqual(cookie.same_site, "Lax")
+        self.assertEqual(self.add_card(number="4111111111111111").status_code, 400)
+        self.assertEqual(self.add_card(cvv="999").status_code, 400)
+        with database.connect() as conn:
+            row = conn.execute("SELECT * FROM demo_cards WHERE card_id=?", (response.json["card"]["card_id"],)).fetchone()
+            self.assertNotIn("number", row.keys())
+            self.assertNotIn("cvv", row.keys())
+            self.assertNotIn(cookie.value, str(dict(row)))
+            self.assertEqual(row["last4"], "4242")
 
     def test_checkout_rejects_invalid_input_and_self_purchase(self):
         product_id = self.create_listing()
@@ -212,8 +292,11 @@ class PostgreSQLTests(unittest.TestCase):
         product_id = self.create_listing("Concurrent checkout")
         form = self.checkout_form(product_id)
 
+        cookie = self.client.get_cookie("demo_wallet").value
+
         def submit(_):
             with web.app.test_client() as client:
+                client.set_cookie("demo_wallet", cookie)
                 response = client.post(f"/checkout/{product_id}", data=form)
                 return response.status_code, response.location
 
@@ -224,7 +307,8 @@ class PostgreSQLTests(unittest.TestCase):
         other_id = self.create_listing("Different checkout")
         self.assertEqual(self.client.post(f"/checkout/{other_id}", data=form).status_code, 409)
         # A competing buyer with a different reference cannot buy the sold item.
-        other_form = {**form, "buyer_id": "3", "payment_reference": str(uuid.uuid4())}
+        other_card = self.add_card(buyer=3).json["card"]["card_id"]
+        other_form = {**form, "buyer_id": "3", "card_id": other_card, "payment_reference": str(uuid.uuid4())}
         self.assertEqual(self.client.post(f"/checkout/{product_id}", data=other_form).status_code, 409)
 
     def test_migration_preserves_legacy_purchases(self):
@@ -244,7 +328,7 @@ class PostgreSQLTests(unittest.TestCase):
             self.assertEqual(row["payment_status"], "Not recorded")
             self.assertIsNone(row["payment_reference"])
             self.assertEqual(str(row["agreed_price"]), "3800.00")
-            self.assertEqual(conn.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0], 1)
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0], 2)
         finally:
             # The temporary schema, data, and migration are all rolled back.
             conn.rollback()
