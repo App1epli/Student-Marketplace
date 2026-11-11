@@ -5,10 +5,12 @@ import argparse
 import os
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from uuid import uuid4
 
 from flask import Flask, redirect, render_template, request, send_from_directory, url_for
 
-from backend.database import connect, initialize_database, psycopg2
+from backend.database import connect, initialize_database, migrate_database, psycopg2
+from backend.payments import CheckoutError, complete_purchase, demo_buyer_id
 
 ROOT = Path(__file__).resolve().parents[1]
 app = Flask(__name__, template_folder=str(ROOT / "frontend/templates"), static_folder=None)
@@ -19,7 +21,7 @@ STATUSES = ("Available", "Sold", "Removed", "All")
 
 @app.template_filter("money")
 def money(value):
-    return f"{value:,.0f}".replace(",", " ") + " ₸"
+    return f"{value:,.2f}".replace(",", " ") + " ₸"
 
 
 @app.after_request
@@ -88,12 +90,65 @@ def catalog():
 def sales():
     with connect() as conn:
         rows = conn.execute("""SELECT pu.purchase_id, pu.purchase_date, pu.agreed_price,
-            pu.payment_method, buyer.full_name AS buyer, p.product_name, seller.full_name AS seller
+            pu.payment_method, pu.payment_status, pu.payment_reference,
+            buyer.full_name AS buyer, p.product_name, seller.full_name AS seller
             FROM purchases pu JOIN students buyer ON buyer.student_id = pu.buyer_id
             JOIN products p ON p.product_id = pu.product_id
             JOIN students seller ON seller.student_id = p.seller_id
             ORDER BY pu.purchase_date DESC, pu.purchase_id DESC""").fetchall()
     return render_template("sales.html", title="Purchase history", rows=rows)
+
+
+def checkout_page(product_id, *, error="", status=200, form=None):
+    form = form or {}
+    with connect() as conn:
+        product = conn.execute("""SELECT p.*, s.full_name AS seller, c.category_name
+            FROM products p JOIN students s ON s.student_id=p.seller_id
+            JOIN categories c ON c.category_id=p.category_id WHERE product_id=?""", (product_id,)).fetchone()
+        if not product:
+            return not_found(None)
+        people = conn.execute("SELECT student_id, full_name FROM students WHERE student_id<>? ORDER BY full_name", (product["seller_id"],)).fetchall()
+    return render_template("checkout.html", title="Checkout", product=product, people=people,
+                           reference=form.get("payment_reference") or str(uuid4()),
+                           buyer_id=form.get("buyer_id", ""), method=form.get("payment_method", "Demo Card"),
+                           outcome=form.get("demo_result", "approved"), error=error), status
+
+
+@app.get("/checkout/<int:product_id>")
+def checkout(product_id):
+    if not 0 < product_id <= 2147483647:
+        return not_found(None)
+    return checkout_page(product_id)
+
+
+@app.post("/checkout/<int:product_id>")
+def checkout_submit(product_id):
+    if not 0 < product_id <= 2147483647:
+        return not_found(None)
+    try:
+        with connect() as conn:
+            reference = complete_purchase(conn, product_id=product_id, buyer_id=demo_buyer_id(request.form),
+                method=request.form.get("payment_method", ""),
+                reference=request.form.get("payment_reference", ""), outcome=request.form.get("demo_result", "approved"))
+    except CheckoutError as exc:
+        return checkout_page(product_id, error=str(exc), status=exc.status, form=request.form)
+    except psycopg2.IntegrityError:
+        return checkout_page(product_id, error="The purchase could not be completed. Please refresh and try again.", status=409, form=request.form)
+    return redirect(url_for("receipt", reference=reference), code=303)
+
+
+@app.get("/payments/<uuid:reference>")
+def receipt(reference):
+    with connect() as conn:
+        purchase = conn.execute("""SELECT pu.*, p.product_name, buyer.full_name AS buyer,
+            seller.full_name AS seller FROM purchases pu
+            JOIN products p ON p.product_id=pu.product_id
+            JOIN students buyer ON buyer.student_id=pu.buyer_id
+            JOIN students seller ON seller.student_id=p.seller_id
+            WHERE pu.payment_reference=?""", (str(reference),)).fetchone()
+    if not purchase:
+        return not_found(None)
+    return render_template("receipt.html", title="Demo receipt", purchase=purchase)
 
 
 @app.post("/listing")
@@ -120,6 +175,7 @@ def listing():
 
 @app.post("/purchase")
 def purchase():
+    """Compatibility endpoint for the original cash / bank-transfer forms."""
     try:
         buyer_id, product_id = int(request.form["buyer_id"]), int(request.form["product_id"])
         payment = request.form.get("payment_method", "")
@@ -127,18 +183,10 @@ def purchase():
                 or not 0 < product_id <= 2147483647):
             raise ValueError("Select a valid buyer, listing, and payment method.")
         with connect() as conn:
-            product = conn.execute("SELECT * FROM products WHERE product_id=? FOR UPDATE", (product_id,)).fetchone()
-            if not product or product["status"] != "Available":
-                raise ValueError("This listing is no longer available.")
-            if product["seller_id"] == buyer_id:
-                raise ValueError("You cannot buy your own listing.")
-            if not conn.execute("SELECT 1 FROM students WHERE student_id=?", (buyer_id,)).fetchone():
-                raise ValueError("Select a buyer from the list.")
-            conn.execute("INSERT INTO purchases (buyer_id, product_id, agreed_price, payment_method) VALUES (?, ?, ?, ?)",
-                         (buyer_id, product_id, product["price"], payment))
-            changed = conn.execute("UPDATE products SET status='Sold' WHERE product_id=? AND status='Available'", (product_id,)).rowcount
-            if changed != 1:
-                raise ValueError("This listing is no longer available.")
+            reference = complete_purchase(conn, product_id=product_id, buyer_id=buyer_id,
+                                          method=payment, reference=str(uuid4()))
+            # Legacy forms only record an arrangement; they never simulate payment.
+            conn.execute("UPDATE purchases SET payment_status='Pending' WHERE payment_reference=?", (reference,))
     except (KeyError, ValueError) as exc:
         message = str(exc) if isinstance(exc, ValueError) and str(exc) else "Select a valid buyer and listing."
         return redirect(url_for("catalog", notice=message), code=303)
@@ -166,7 +214,12 @@ def database_unavailable(error):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--init-db", action="store_true", help="Create tables and load demo records, then exit")
+    parser.add_argument("--migrate-db", action="store_true", help="Upgrade the database schema without seeding records")
     args = parser.parse_args()
+    if args.migrate_db:
+        migrate_database()
+        print("Database schema upgraded. Existing marketplace records preserved.")
+        return
     if args.init_db:
         initialize_database()
         print("Database ready: PostgreSQL. Tables and demo records initialized.")

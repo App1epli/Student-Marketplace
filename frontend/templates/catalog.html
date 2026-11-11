@@ -15,12 +15,8 @@
   <div class="listing-top"><div><div class="tags"><span class="tag">{{ r.category_name }}</span><span class="tag">{{ r.item_condition }}</span></div><h3 style="margin-top:9px">{{ r.product_name }}</h3></div><span class="badge {{ 'sold' if r.status != 'Available' else '' }}">{{ r.status }}</span></div>
   <div class="description">{{ r.description }}</div><div class="card-bottom"><div><div class="price">{{ r.price|money }}</div><div class="seller">Seller: {{ r.seller }}</div></div></div>
   {% if r.status == 'Available' %}
-  <details class="buy"><summary>Buy this item</summary>
-    <form method="post" action="/purchase" class="buy-fields"><input type="hidden" name="product_id" value="{{ r.product_id }}">
-    <select name="buyer_id" aria-label="Buyer" required>{% for p in people if p.student_id != r.seller_id %}<option value="{{ p.student_id }}">{{ p.full_name }}</option>{% endfor %}</select>
-    <select name="payment_method" aria-label="Payment method"><option value="Cash">Cash</option><option value="Bank Transfer">Bank transfer</option></select>
-    <button type="submit">Confirm purchase</button></form>
-  </details>
+  <a class="button checkout-link" href="{{ url_for('checkout', product_id=r.product_id) }}">Buy this item <span aria-hidden="true">→</span></a>
+  <span class="muted">Demo checkout · no real charges</span>
   {% endif %}
 </article>
 {% else %}

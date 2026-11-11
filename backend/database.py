@@ -176,12 +176,31 @@ def connect(url: str | None = None) -> DatabaseConnection:
     return DatabaseConnection(raw)
 
 
+def apply_migrations(conn):
+    conn.executescript("""CREATE TABLE IF NOT EXISTS schema_migrations (
+        version TEXT PRIMARY KEY, applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )""")
+    for migration in sorted((BASE_DIR / "backend/migrations").glob("*.sql")):
+        if not conn.execute("SELECT 1 FROM schema_migrations WHERE version=?", (migration.name,)).fetchone():
+            conn.executescript(migration.read_text(encoding="utf-8"))
+            conn.execute("INSERT INTO schema_migrations (version) VALUES (?)", (migration.name,))
+
+
+def migrate_database():
+    """Upgrade the schema without adding or updating any demo records."""
+    with connect(os.environ.get("DATABASE_URL_UNPOOLED") or database_url()) as conn:
+        conn.execute("SELECT pg_advisory_xact_lock(87421931)")
+        conn.executescript(POSTGRES_SCHEMA)
+        apply_migrations(conn)
+
+
 def initialize_database() -> None:
     conn = connect(os.environ.get("DATABASE_URL_UNPOOLED") or database_url())
     try:
         # Serialize explicit initializers; never run schema changes during a request.
         conn.execute("SELECT pg_advisory_xact_lock(87421931)")
         conn.executescript(POSTGRES_SCHEMA)
+        apply_migrations(conn)
         # Keep seller names aligned with the project team in databases created earlier.
         for student_number, full_name in TEAM_STUDENT_NAMES.items():
             conn.execute("UPDATE students SET full_name=? WHERE student_number=?", (full_name, student_number))

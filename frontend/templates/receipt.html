@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="receipt-wrap"><div class="demo-banner"><span class="demo-label">DEMO RECEIPT</span><span>For your class project. No real money was transferred.</span></div>
+<section class="panel receipt-panel"><div class="receipt-icon" aria-hidden="true">✓</div>
+<div class="eyebrow">Order #{{ purchase.purchase_id }}</div>
+<h1>{{ 'Demo payment successful' if purchase.payment_status == 'Demo paid' else 'Order confirmed' }}</h1>
+<p class="subtle">{{ 'Your simulated payment is complete. The item is now marked sold.' if purchase.payment_status == 'Demo paid' else 'Your order is recorded. Payment is still pending.' }}</p>
+<span class="badge {{ 'sold' if purchase.payment_status != 'Demo paid' else '' }}">{{ purchase.payment_status }}</span>
+<div class="receipt-amount">{{ purchase.agreed_price|money }}</div>
+<dl class="summary-details receipt-details"><div><dt>Item</dt><dd>{{ purchase.product_name }}</dd></div><div><dt>Buyer</dt><dd>{{ purchase.buyer }}</dd></div><div><dt>Seller</dt><dd>{{ purchase.seller }}</dd></div><div><dt>Payment method</dt><dd>{{ 'Bank transfer (demo)' if purchase.payment_method == 'Bank Transfer' and purchase.payment_status == 'Demo paid' else purchase.payment_method }}</dd></div><div><dt>Date</dt><dd>{{ purchase.purchase_date.strftime('%d %b %Y, %H:%M') }}</dd></div><div><dt>Reference</dt><dd class="receipt-reference">{{ purchase.payment_reference }}</dd></div></dl>
+<div class="receipt-actions"><a class="button" href="/sales">View purchase history</a><a class="button secondary" href="/">Continue browsing</a><button class="print-receipt secondary" type="button" id="print-receipt" hidden>Print receipt</button></div>
+</section></div>
+<script src="/static/receipt.js" defer></script>
+{% endblock %}

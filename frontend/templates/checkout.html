@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="checkout-heading"><a class="back-link" href="/">← Back to marketplace</a><div class="eyebrow">Student marketplace / Checkout</div><h1>Make it yours.</h1><p class="subtle">Review your item and try the payment experience.</p></div>
+<div class="demo-banner"><span class="demo-label">DEMO MODE</span><span>No real money is charged. Use the sample payment options below.</span></div>
+{% if error %}<div class="checkout-error" role="alert" tabindex="-1" id="checkout-error"><strong>Checkout could not be completed</strong><p>{{ error }}</p></div>{% endif %}
+<div class="checkout-layout">
+<section class="panel checkout-panel">
+{% if product.status == 'Available' %}
+<form method="post" action="{{ url_for('checkout_submit', product_id=product.product_id) }}" id="checkout-form">
+  <input type="hidden" name="payment_reference" value="{{ reference }}">
+  <div class="section-title"><span class="step-number">1</span><div><h2>Who is buying?</h2><p class="subtle">Choose a sample student. No sign-in needed for this demo.</p></div></div>
+  <label for="buyer-id">Demo buyer</label>
+  <select name="buyer_id" id="buyer-id" required><option value="">Select a buyer</option>{% for p in people %}<option value="{{ p.student_id }}" {% if p.student_id|string == buyer_id %}selected{% endif %}>{{ p.full_name }}</option>{% endfor %}</select>
+  <fieldset class="payment-methods"><legend><span class="step-number">2</span> Payment method</legend>
+    <label class="payment-option"><input type="radio" name="payment_method" value="Demo Card" {% if method == 'Demo Card' %}checked{% endif %} required><span class="method-symbol" aria-hidden="true">▣</span><span><strong>Demo card</strong><small>Instant simulated payment</small></span><span class="tag">TEST</span></label>
+    <label class="payment-option"><input type="radio" name="payment_method" value="Bank Transfer" {% if method == 'Bank Transfer' %}checked{% endif %}><span class="method-symbol" aria-hidden="true">⇄</span><span><strong>Bank transfer</strong><small>Simulated transfer · no banking app required</small></span></label>
+    <label class="payment-option"><input type="radio" name="payment_method" value="Cash" {% if method == 'Cash' %}checked{% endif %}><span class="method-symbol" aria-hidden="true">₸</span><span><strong>Cash at pickup</strong><small>Record the order with payment pending</small></span></label>
+  </fieldset>
+  <div class="method-details" data-method="Demo Card">
+    <div class="sample-card"><span class="sample-card-top">STUDENT MARKETPLACE <span>DEMO CARD</span></span><span class="sample-card-number">•••• &nbsp; •••• &nbsp; •••• &nbsp; 4242</span><span class="sample-card-bottom">Sample card · no card details required</span></div>
+  </div>
+  <div class="method-details payment-explanation" data-method="Bank Transfer"><strong>Try a bank transfer</strong><p>This demo simulates a completed transfer. No bank account, QR payment or external app is used.</p></div>
+  <div class="method-details payment-explanation" data-method="Cash"><strong>Pay when you meet</strong><p>The order will be recorded and the item marked sold. Payment stays pending; arrange pickup with the seller separately.</p></div>
+  <div id="demo-scenario"><label for="demo-result">Demo payment result</label><select id="demo-result" name="demo_result"><option value="approved" {% if outcome == 'approved' %}selected{% endif %}>Approved — show successful payment</option><option value="declined" {% if outcome == 'declined' %}selected{% endif %}>Declined — try the error flow</option></select><p class="hint">This controls the simulation for card and bank transfer payments.</p></div>
+  <div class="checkout-actions"><button type="submit" id="pay-button" data-total="{{ product.price|money }}">Confirm demo checkout · {{ product.price|money }}</button><a class="cancel-link" href="{{ url_for('catalog', notice='Checkout cancelled. No purchase was created.') }}">Cancel checkout</a></div>
+  <p class="safe-note">This creates a demo order in the marketplace. No real money is transferred.</p>
+</form>
+{% else %}
+<div class="empty"><h2>This item is no longer available</h2><p>No payment was taken. Another student may have purchased it.</p><a class="button" href="/">Find another item</a></div>
+{% endif %}
+</section>
+<aside class="panel order-summary" aria-label="Order summary"><div class="eyebrow">Your order</div><div class="item-illustration" aria-hidden="true">SM<span>STUDENT FINDS</span></div><span class="tag">{{ product.category_name }}</span><h2>{{ product.product_name }}</h2><p class="subtle">{{ product.description }}</p><dl class="summary-details"><div><dt>Seller</dt><dd>{{ product.seller }}</dd></div><div><dt>Condition</dt><dd>{{ product.item_condition }}</dd></div><div><dt>Quantity</dt><dd>1 item</dd></div></dl><dl class="summary-totals"><div><dt>Item price</dt><dd>{{ product.price|money }}</dd></div><div><dt>Service fee</dt><dd>{{ 0|money }}</dd></div><div class="summary-total"><dt>Total</dt><dd>{{ product.price|money }}</dd></div></dl><p class="hint">Currency: KZT · No delivery fee is included.</p></aside>
+</div>
+<script src="/static/checkout.js" defer></script>
+{% endblock %}
