@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero"><div><div class="eyebrow">Buy nearby, sell with ease</div><h1>Find what you need for school</h1><p>Textbooks, electronics, and dorm essentials listed by students at your university.</p></div>
+<div class="stats"><span class="stat"><b>{{ counts.get('Available', 0) }}</b> available</span><span class="stat"><b>{{ counts.get('Sold', 0) }}</b> sold</span></div></section>
+<div class="workspace"><section class="panel">
+<div class="panel-heading"><div><div class="eyebrow">Student listings</div><h2>Marketplace catalog</h2></div><span class="subtle">{{ rows|length }} listing{{ '' if rows|length == 1 else 's' }}</span></div>
+<form class="filters" method="get" action="/">
+  <input name="q" placeholder="Search by item, description, or seller" value="{{ search }}" aria-label="Search listings">
+  <select name="category" aria-label="Category"><option value="">All categories</option>{% for c in categories %}<option value="{{ c.category_id }}" {% if c.category_id|string == category %}selected{% endif %}>{{ c.category_name }}</option>{% endfor %}</select>
+  <select name="status" aria-label="Listing status">{% for value in statuses %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ 'All listings' if value == 'All' else value }}</option>{% endfor %}</select><button type="submit">Search</button>
+</form>
+<div class="catalog">
+{% for r in rows %}
+<article class="listing">
+  <div class="listing-top"><div><div class="tags"><span class="tag">{{ r.category_name }}</span><span class="tag">{{ r.item_condition }}</span></div><h3 style="margin-top:9px">{{ r.product_name }}</h3></div><span class="badge {{ 'sold' if r.status != 'Available' else '' }}">{{ r.status }}</span></div>
+  <div class="description">{{ r.description }}</div><div class="card-bottom"><div><div class="price">{{ r.price|money }}</div><div class="seller">Seller: {{ r.seller }}</div></div></div>
+  {% if r.status == 'Available' %}
+  <details class="buy"><summary>Buy this item</summary>
+    <form method="post" action="/purchase" class="buy-fields"><input type="hidden" name="product_id" value="{{ r.product_id }}">
+    <select name="buyer_id" aria-label="Buyer" required>{% for p in people if p.student_id != r.seller_id %}<option value="{{ p.student_id }}">{{ p.full_name }}</option>{% endfor %}</select>
+    <select name="payment_method" aria-label="Payment method"><option value="Cash">Cash</option><option value="Bank Transfer">Bank transfer</option></select>
+    <button type="submit">Confirm purchase</button></form>
+  </details>
+  {% endif %}
+</article>
+{% else %}
+<div class="empty"><div class="empty-icon">⌕</div><strong>No listings found</strong><br><span class="muted">Try another search or choose a different category.</span></div>
+{% endfor %}
+</div></section>
+{% include "listing_form.html" %}
+</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+.venv
+venv
+__pycache__
+deliverables
+tests
+.DS_Store
+apply_messaging.py
+messaging.py
+.tmp

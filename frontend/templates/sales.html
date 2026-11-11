@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel"><div class="panel-heading"><div><div class="eyebrow">Your marketplace</div><h2>Purchase history</h2></div><span class="tag">{{ rows|length }} purchase{{ '' if rows|length == 1 else 's' }}</span></div>
+{% if rows %}
+<div style="overflow-x:auto"><table class="sales-table"><thead><tr><th>Item</th><th>Buyer</th><th>Seller</th><th>Price</th><th>Payment</th><th>Date</th></tr></thead><tbody>
+{% for r in rows %}<tr><td>{{ r.product_name }}</td><td>{{ r.buyer }}</td><td>{{ r.seller }}</td><td>{{ r.agreed_price|money }}</td><td>{{ r.payment_method }}</td><td>{{ r.purchase_date }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% else %}
+<div class="empty"><div class="empty-icon">↗</div><strong>No purchases yet</strong><br><span class="muted">Completed purchases will appear here.</span></div>
+{% endif %}</section>
+{% endblock %}

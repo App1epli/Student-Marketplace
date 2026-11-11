@@ -1,6 +1,100 @@
 # Student Marketplace
 
-A student-to-student marketplace with an English web interface and a PostgreSQL database. Students can browse, search, and filter listings, publish items, record purchases, and review purchase history.
+Учебный маркетплейс на Flask и PostgreSQL: каталог, поиск, фильтры, публикация товаров и история покупок. Интерфейс остаётся на английском.
+
+## Структура
+
+```text
+frontend/
+  templates/        # HTML-шаблоны Jinja: каталог, форма, история, ошибки
+  static/styles.css # Стили интерфейса
+backend/
+  app.py            # Flask, маршруты и проверка данных
+  database.py       # PostgreSQL, схема и демоданные
+scripts/build_static.py # Копирует стили в public/static для CDN Vercel
+app.py              # Совместимый запуск: python app.py
+pyproject.toml      # Точка входа backend.app:app
+vercel.json         # Настройки Flask и сборки
+requirements.txt
+.env.example
+```
+
+Фронтенд и бэкенд разделены по папкам, но разворачиваются **одним проектом Vercel из корня репозитория**. HTML формируется сервером; отдельная Node.js-сборка и CORS не нужны. Существующие URL `/`, `/sales`, `/listing` и `/purchase` сохранены. `/api/health` проверяет подключение к базе и наличие таблицы `students`.
+
+## Деплой на Vercel и облачная база Neon
+
+1. Создайте проект PostgreSQL в [Neon](https://console.neon.tech/). В окне **Connect** скопируйте строку подключения с включённым **Connection pooling**. Она обычно содержит `-pooler` в имени хоста. Сохраните параметры SSL из выданной строки (`sslmode=require` и остальные, если они есть).
+2. Для создания таблиц скопируйте `.env.example` в `.env` в корне проекта и замените `DATABASE_URL` на облачную строку. При желании задайте `DATABASE_URL_UNPOOLED` прямой строкой Neon: команда инициализации предпочитает её, приложение использует `DATABASE_URL`. Не публикуйте `.env` в Git и не передавайте пароль во фронтенд.
+3. Выполните локально из корня:
+
+   ```powershell
+   python -m pip install -r requirements.txt
+   python -m backend.app --init-db
+   ```
+
+   Команда создаёт четыре таблицы, пять учебных аккаунтов, четыре категории, 26 объявлений и пример покупки. Повторный запуск добавляет отсутствующие демотовары и обновляет имена учебных аккаунтов, сохраняя существующие покупки. Инициализация выполняется явно, а не при запросах или сборке Vercel. Используйте отдельную базу для этого учебного приложения.
+4. Отправьте изменения репозитория в GitHub и импортируйте/откройте проект в Vercel. Настройки:
+
+   | Поле | Значение |
+   |---|---|
+   | Root Directory | Корень репозитория (`.`), не `frontend` и не `backend` |
+   | Framework Preset | Flask |
+   | Build Command | Из `vercel.json`: `python scripts/build_static.py` |
+   | Output Directory | Без пользовательского переопределения |
+   | Install Command | По умолчанию, зависимости из `requirements.txt` |
+   | Python | 3.13, задан в `.python-version` |
+
+5. В **Settings → Environment Variables** добавьте `DATABASE_URL` со строкой Neon для **Production**. Для **Preview** лучше использовать отдельную ветку/базу Neon, также предварительно инициализированную. `.env` с компьютера на Vercel не загружается.
+6. Запустите **Redeploy** после сохранения переменных. Проверьте `/api/health`: ожидается `{"status":"ok","database":"ok"}`. Затем откройте каталог, создайте объявление, купите его от другого учебного аккаунта и проверьте `/sales`.
+
+Стили при сборке копируются из `frontend/static` в `public/static`, откуда их раздаёт CDN Vercel. Генерируемая папка `public` не хранится в Git. Шаблоны из `frontend/templates` включаются в Python-функцию.
+
+### Почему возникала ошибка PYTHON_ENTRYPOINT_NOT_FOUND
+
+Раньше `app.py` запускал `ThreadingHTTPServer` только через `main()` и не экспортировал WSGI-приложение. Теперь `backend/app.py` экспортирует `app = Flask(...)`, а `pyproject.toml` явно указывает `backend.app:app`.
+
+Не используйте предложенную в старом логе точку входа `apply_messaging:app`: там `app` — путь к файлу, а не веб-сервер. `apply_messaging.py` и `messaging.py` сохранены как старые необязательные материалы; они не подключены к Flask, исключены из Vercel и не должны запускаться для этой структуры. Мессенджер не был включён в исходном приложении.
+
+Если сборка продолжает показывать старую ошибку, проверьте выбранную ветку/коммит, корневую папку и уберите старое переопределение точки входа. При ответе 503 проверьте `DATABASE_URL`, доступность базы и выполненную инициализацию. Создание Neon-проекта и фактический деплой требуют доступа к вашим аккаунтам и не выполняются самой конфигурацией.
+
+Документация: [Python entrypoints](https://vercel.com/docs/functions/runtimes/python#python-entrypoints), [Flask на Vercel](https://vercel.com/docs/frameworks/backend/flask), [подключение Neon](https://neon.com/docs/connect/connect-from-any-app).
+
+## Локальный запуск
+
+Требования: Python 3.13 и PostgreSQL 14+ (локальный, Docker или облачный).
+
+```powershell
+Copy-Item .env.example .env
+python -m pip install -r requirements.txt
+# При использовании Docker вместо установленного PostgreSQL:
+# docker compose up -d --wait db
+python -m backend.app --init-db
+python -m backend.app
+```
+
+Откройте http://127.0.0.1:8000. Сохранены команды `python app.py --init-db`, `python app.py` и `run_app.bat`. Для своего PostgreSQL измените `DATABASE_URL` в `.env`. Для базы со стандартными локальными значениями из примера выполните от администратора PostgreSQL:
+
+```sql
+CREATE ROLE marketplace WITH LOGIN PASSWORD 'marketplace';
+CREATE DATABASE student_marketplace OWNER marketplace;
+```
+
+Запуск сервера сам по себе больше не создаёт таблицы. Выполните `--init-db` перед первым запуском. Переменные окружения имеют приоритет над `.env`. Для другого адреса/порта задайте `HOST` / `PORT`. Остановка сервера: Ctrl+C. `docker compose down` сохраняет данные в именованном томе.
+
+## Проверки
+
+```powershell
+python -m unittest discover -s tests -v
+python scripts/build_static.py
+```
+
+Для интеграционных проверок задайте `TEST_DATABASE_URL` тестовой PostgreSQL-базой. Тесты создают отдельную случайную схему, проверяют создание таблиц, каталог, фильтрацию, публикацию, покупку и одновременные покупки, затем удаляют только свою схему. Без этой переменной интеграционные тесты пропускаются.
+
+Приложение остаётся учебной демонстрацией: аккаунт выбирается в форме без авторизации. Для использования реальными пользователями потребуется аутентификация и проверка прав на действия.
+
+## Учебные материалы
+
+`deliverables/Student_Marketplace_Task09.sql` — самостоятельный SQL-скрипт задания для пустой учебной базы. Для запуска сайта выполняйте `--init-db`; импортировать этот файл дополнительно не нужно.
 
 ## Team
 
@@ -11,78 +105,3 @@ A student-to-student marketplace with an English web interface and a PostgreSQL 
 | Alkhan Yerdaulet | `24B031631` | Testing and integration; foreign keys and relationships |
 | Tanirberdi Daulet | `24B032053` | Data and database; ERD and repeated data |
 | Sembayev Zharas | `24B032016` | Architecture and security; SQL, decisions, and transactions |
-
-## Requirements
-
-- Python 3.9 or later
-- PostgreSQL 14+ installed and running
-- Docker Desktop is optional
-
-## Run without Docker
-
-Install PostgreSQL for Windows and start its PostgreSQL service. In pgAdmin, connect as the PostgreSQL administrator, open the Query Tool on the `postgres` database, and create the app role and database:
-
-```sql
-CREATE ROLE marketplace WITH LOGIN PASSWORD 'marketplace';
-CREATE DATABASE student_marketplace OWNER marketplace;
-```
-
-In PowerShell, from the project root:
-
-```powershell
-Copy-Item .env.example .env
-python -m pip install -r requirements.txt
-python app.py --init-db
-python app.py
-```
-
-Open <http://127.0.0.1:8000>. The app creates the four tables and loads sample data on first launch: five students, four categories, 26 listings (including 20 added listings), and one example purchase. On an existing project database, it adds any missing sample listings without duplicating them. `--init-db` is optional; it prints table record counts. Stop the app with `Ctrl+C`.
-
-On Windows, `run_app.bat` installs the Python dependency and starts the app. It expects the local PostgreSQL service to be running and `.env` to contain the right connection string. The default `.env.example` values match the SQL role and database shown above.
-
-For a different PostgreSQL user, password, host, or database, edit `DATABASE_URL` in `.env`. Example: `postgresql://marketplace:your-password@localhost:5432/student_marketplace`.
-
-## Optional Docker setup
-
-If Docker Desktop is installed, Compose can start a PostgreSQL instance for the project instead of installing PostgreSQL directly:
-
-```powershell
-Copy-Item .env.example .env
-python -m pip install -r requirements.txt
-docker compose up -d --wait db
-python app.py
-```
-
-Stop the container with `docker compose down`; its data remains in the named volume.
-
-`app.py` initializes tables and sample records on first run. Existing tables and data are retained on later launches. `.env` is excluded from Git; never commit real database passwords.
-
-## Features
-
-- Browse listings, with search by item, description, category, or seller.
-- Filter by category and listing status.
-- Publish listings with required-field and price validation.
-- Record purchases in an atomic database transaction. PostgreSQL locks a listing during purchase to prevent concurrent duplicate sales and self-purchases.
-- View purchase history.
-- Responsive English interface for desktop and mobile.
-- PostgreSQL primary keys, foreign keys, uniqueness rules, and check constraints.
-
-## Project layout
-
-```text
-.
-├── app.py
-├── docker-compose.yml
-├── requirements.txt
-├── .env.example
-├── run_app.bat
-├── README.md
-└── deliverables/
-    ├── Student_Marketplace_Task09.sql
-    ├── StudentMarketplace_Team_StudentMarketplace_Task09.docx
-    └── StudentMarketplace_Full_Project.zip
-```
-
-## Assignment SQL
-
-`deliverables/Student_Marketplace_Task09.sql` is the standalone PostgreSQL assignment script. Run it in a new, empty practice database with pgAdmin or `psql`. The web app connects to PostgreSQL directly and initializes the same marketplace tables automatically; you do not need to run the assignment script for the app.

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#142d44">
+  <title>{{ title }} | Student Marketplace</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header><div class="topbar"><a class="brand" href="/"><span class="brand-mark">SM</span><span><span class="brand-title">Student Marketplace</span><br><span class="brand-sub">Good items, new owners</span></span></a><span class="demo-pill">Class project</span></div></header>
+<main>
+  {% if notice %}<div class="notice" role="status"><span class="notice-icon">✓</span><span>{{ notice }}</span></div>{% endif %}
+  <nav class="nav"><a {% if request.path == '/' %}class="active"{% endif %} href="/">Browse</a><a {% if request.path == '/sales' %}class="active"{% endif %} href="/sales">Purchase history</a></nav>
+  {% block content %}{% endblock %}
+  <footer>Classroom demo. Sample marketplace accounts and listings are fictional.</footer>
+</main>
+</body>
+</html>
