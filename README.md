@@ -13,7 +13,8 @@ backend/
   database.py       # PostgreSQL, схема и демоданные
 scripts/build_static.py # Копирует стили в public/static для CDN Vercel
 app.py              # Совместимый запуск: python app.py
-pyproject.toml      # Точка входа backend.app:app
+pyproject.toml      # Зависимости Python и точка входа backend.app:app
+uv.lock             # Зафиксированные версии для сборки Vercel
 vercel.json         # Настройки Flask и сборки
 requirements.txt
 .env.example
@@ -41,7 +42,7 @@ requirements.txt
    | Framework Preset | Flask |
    | Build Command | Из `vercel.json`: `python scripts/build_static.py` |
    | Output Directory | Без пользовательского переопределения |
-   | Install Command | По умолчанию, зависимости из `requirements.txt` |
+   | Install Command | По умолчанию, зависимости из `pyproject.toml` и `uv.lock` |
    | Python | 3.13, задан в `.python-version` |
 
 5. В **Settings → Environment Variables** добавьте `DATABASE_URL` со строкой Neon для **Production**. Для **Preview** лучше использовать отдельную ветку/базу Neon, также предварительно инициализированную. `.env` с компьютера на Vercel не загружается.
@@ -58,6 +59,14 @@ requirements.txt
 Если сборка продолжает показывать старую ошибку, проверьте выбранную ветку/коммит, корневую папку и уберите старое переопределение точки входа. При ответе 503 проверьте `DATABASE_URL`, доступность базы и выполненную инициализацию. Создание Neon-проекта и фактический деплой требуют доступа к вашим аккаунтам и не выполняются самой конфигурацией.
 
 Документация: [Python entrypoints](https://vercel.com/docs/functions/runtimes/python#python-entrypoints), [Flask на Vercel](https://vercel.com/docs/frameworks/backend/flask), [подключение Neon](https://neon.com/docs/connect/connect-from-any-app).
+
+### Ошибка ModuleNotFoundError: No module named 'flask'
+
+Vercel отдаёт приоритет `pyproject.toml` при установке Python-зависимостей. В нём должны быть объявлены Flask и psycopg2-binary в `[project].dependencies`; одного `requirements.txt` рядом недостаточно. `requirements.txt` сохраняется для локальной установки через pip, его список должен совпадать с `pyproject.toml`.
+
+`uv.lock` фиксирует версии для Vercel. После изменения зависимостей обновите его командой `uv lock` и включите в коммит.
+
+После изменения зависимостей отправьте новый коммит в GitHub и дождитесь деплоя именно этого коммита. При ручном Redeploy выберите новый деплой и отключите **Use existing Build Cache**. Повторный деплой старого коммита не применит исправления файлов.
 
 ## Локальный запуск
 
