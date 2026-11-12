@@ -37,8 +37,10 @@
     status.classList.toggle('wallet-error', error || Boolean(card?.expired));
   };
 
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
   const api = async (url, options = {}) => {
-    const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store', ...options });
+    const headers = { 'X-CSRFToken': csrfToken, ...(options.headers || {}) };
+    const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store', ...options, headers });
     const data = await response.json().catch(() => ({ error: 'Could not load the wallet. Please try again.' }));
     if (!response.ok) throw new Error(data.error || 'The request could not be completed.');
     return data;

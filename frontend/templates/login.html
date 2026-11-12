@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel" style="max-width:520px">
+  <h2>Log in</h2>
+  {% if notice %}<p class="subtle" role="status">{{ notice }}</p>{% endif %}
+  {% if error %}<p class="checkout-error" role="alert">{{ error }}</p>{% endif %}
+  <form method="post" action="{{ url_for('auth.login') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" autocomplete="email" required>
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
+    <div class="form-actions"><button type="submit">Log in</button></div>
+  </form>
+  <p class="subtle">No account? <a href="{{ url_for('auth.register') }}">Create one</a>. The catalog stays public; messaging requires an account.</p>
+</section>
+{% endblock %}

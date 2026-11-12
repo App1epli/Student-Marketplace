@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <div class="panel-heading"><div><div class="eyebrow">Chat</div><h2>{{ conversation.product_name }}</h2></div><a href="{{ url_for('messaging.inbox') }}">All chats</a></div>
+  <p class="subtle">Buyer: {{ conversation.buyer_name }} · Seller: {{ conversation.seller_name }}<br>Logged in as: {{ user.full_name }}</p>
+  <div id="chat-history" aria-live="polite" style="max-height:440px;overflow:auto">
+    {% for r in rows %}
+    <div class="listing" style="margin:8px 0;{% if r.sender_id == user.student_id %}background:#edf5fa;{% endif %}">
+      <strong>{{ r.sender }}</strong><div>{{ r.message_text }}</div><small>{{ r.sent_at }}</small>
+    </div>
+    {% endfor %}
+  </div>
+  <form method="post" action="{{ url_for('messaging.send') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="conversation_id" value="{{ conversation.conversation_id }}">
+    <label for="message">Message</label>
+    <textarea id="message" name="message_text" maxlength="2000" required></textarea>
+    <button type="submit">Send message</button>
+  </form>
+  <p class="subtle">Messages refresh every 3 seconds.</p>
+</section>
+<script>
+(function () {
+  const chat = document.getElementById('chat-history');
+  const url = {{ url_for('messaging.updates', conversation_id=conversation.conversation_id) | tojson }};
+  const ownId = {{ user.student_id }};
+  function render(messages) {
+    const nearBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 80;
+    chat.replaceChildren();
+    for (const m of messages) {
+      const box = document.createElement('div');
+      box.className = 'listing'; box.style.margin = '8px 0';
+      if (m.sender_id === ownId) box.style.background = '#edf5fa';
+      const who = document.createElement('strong'); who.textContent = m.sender;
+      const msg = document.createElement('div'); msg.textContent = m.text;
+      const time = document.createElement('small'); time.textContent = m.sent_at;
+      box.append(who, msg, time); chat.append(box);
+    }
+    if (nearBottom) chat.scrollTop = chat.scrollHeight;
+  }
+  async function refresh() {
+    try {
+      const response = await fetch(url, { cache: 'no-store' });
+      if (!response.ok) return;
+      render((await response.json()).messages);
+    } catch (_) { /* Keep existing messages during network outages. */ }
+  }
+  chat.scrollTop = chat.scrollHeight;
+  setInterval(refresh, 3000);
+})();
+</script>
+{% endblock %}
