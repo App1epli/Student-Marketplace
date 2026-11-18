@@ -13,7 +13,7 @@ from uuid import uuid4
 from flask import Flask, Response, g, redirect, render_template, request, send_from_directory, url_for
 from flask_wtf.csrf import CSRFProtect
 
-from backend import auth, messaging
+from backend import admin, auth, messaging, messenger, moderation, rbac
 from backend.database import connect, initialize_database, migrate_database, psycopg2
 from backend.payments import CheckoutError, complete_purchase, demo_buyer_id
 from backend.cards import add_card, get_card
@@ -31,6 +31,19 @@ app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
 csrf = CSRFProtect(app)
 app.register_blueprint(auth.bp)
 app.register_blueprint(messaging.bp)
+app.register_blueprint(messenger.bp)
+app.register_blueprint(moderation.bp)
+app.register_blueprint(admin.bp)
+
+
+@app.context_processor
+def inject_rbac_context():
+    user = auth.current_student()
+    if not user:
+        return {"is_admin": False}
+    if not hasattr(g, "is_admin"):
+        g.is_admin = rbac.is_admin(user["student_id"])
+    return {"is_admin": g.is_admin}
 CONDITIONS = ("New", "Like New", "Good", "Fair")
 STATUSES = ("Available", "Sold", "Removed", "All")
 
