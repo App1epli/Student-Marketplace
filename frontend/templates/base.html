@@ -17,12 +17,15 @@
   <nav class="side-nav">
     <a class="{{ 'active' if request.path == '/' or request.path.startswith('/items') else '' }}" href="/"><span>▦</span> Marketplace</a>
     <a class="{{ 'active' if request.path == '/sales' else '' }}" href="/sales"><span>▤</span> Purchases & ratings</a>
-    <a class="{{ 'active' if request.path.startswith('/messages') else '' }}" href="{{ url_for('messaging.inbox') }}"><span>◷</span> Messages</a>
+    <a class="{{ 'active' if request.path.startswith('/messenger') or request.path.startswith('/messages') else '' }}" href="{{ url_for('messenger.index') }}"><span>◷</span> Messages</a>
+    {% if is_admin %}
+    <a class="{{ 'active' if request.path.startswith('/admin') else '' }}" href="{{ url_for('admin.dashboard') }}"><span>⛭</span> Admin Dashboard</a>
+    {% endif %}
     <a href="/#sell"><span>＋</span> Sell an item</a>
     <a href="/?scope=mine&amp;status=All"><span>◇</span> My listings</a>
   </nav>
   <div class="sidebar-bottom"><div class="community-note"><span>✧</span><strong>Good finds, closer to home.</strong><p>Give useful things a second life with your student community.</p></div>
-  <div class="sidebar-profile">{% if current_user %}<span class="profile-avatar">{{ current_user.full_name[0] }}</span><div><strong>{{ current_user.full_name }}</strong><small>Student account</small></div><form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="logout-button" aria-label="Log out">↪</button></form>{% else %}<span class="profile-avatar">S</span><div><strong>Welcome, student</strong><small><a href="{{ url_for('auth.login') }}">Log in</a> · <a href="{{ url_for('auth.register') }}">Join campus</a></small></div>{% endif %}</div></div>
+  <div class="sidebar-profile">{% if current_user %}<span class="profile-avatar">{{ current_user.full_name[0] }}</span><div><strong>{{ current_user.full_name }}</strong><small>{{ 'Administrator' if is_admin else 'Student account' }}</small></div><form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="logout-button" aria-label="Log out">↪</button></form>{% else %}<span class="profile-avatar">S</span><div><strong>Welcome, student</strong><small><a href="{{ url_for('auth.login') }}">Log in</a> · <a href="{{ url_for('auth.register') }}">Join campus</a></small></div>{% endif %}</div></div>
 </aside>
 <div class="app-main"><header class="app-topbar"><div class="breadcrumb">Workspace <span>/</span> <strong>{{ title }}</strong></div><div class="topbar-actions"><span class="live-pill"><i></i> Campus community</span><a class="button secondary small" href="/#sell">＋ List an item</a></div></header>
 <main>

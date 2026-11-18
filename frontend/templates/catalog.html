@@ -24,7 +24,7 @@
   <span class="muted">Demo checkout · no real charges</span>
   {% if current_user and r.seller_id != current_user.student_id %}
   <details class="buy"><summary>Contact seller</summary>
-    <form method="post" action="{{ url_for('messaging.start') }}" style="margin-top:10px">
+    <form method="post" action="{{ url_for('messenger.start') }}" style="margin-top:10px">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="product_id" value="{{ r.product_id }}">
       <button type="submit">Open chat</button>

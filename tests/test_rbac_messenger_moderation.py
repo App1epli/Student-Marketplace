@@ -127,23 +127,29 @@ class RBACAndModerationUnitTests(unittest.TestCase):
     def test_duplicate_active_reports_rejected(self):
         self.set_session_user(1)
         with patch.object(auth, "current_student", return_value={"student_id": 1, "full_name": "Valid Buyer"}):
-            with patch.object(database, "connect") as mock_db:
-                mock_cursor = MagicMock()
-                # 1st call: verify participant (returns conversation where user is buyer)
-                # 2nd call: existing active report check (returns existing report)
-                mock_cursor.fetchone.side_effect = [
-                    {"conversation_id": 10, "buyer_id": 1, "seller_id": 2, "product_id": 1},
-                    {"report_id": 42, "status": "Pending"}
-                ]
-                mock_db.return_value.__enter__.return_value.execute.return_value = mock_cursor
+            with patch.object(rbac, "is_admin", return_value=False):
+                with patch.object(database, "connect") as mock_db, patch.object(web_module, "connect", mock_db):
+                    def execute_query(query, params=()):
+                        cursor = MagicMock()
+                        if "FROM conversations" in query:
+                            cursor.fetchone.return_value = {"conversation_id": 10, "buyer_id": 1, "seller_id": 2, "product_id": 1}
+                        elif "FROM moderation_reports" in query:
+                            cursor.fetchone.return_value = {"report_id": 42, "status": "Pending"}
+                        else:
+                            cursor.fetchone.return_value = None
+                        return cursor
 
-                response = post_form(self.client, "/moderation/report", {
-                    "conversation_id": "10",
-                    "reason": "Harassment",
-                    "explanation": "Second report attempt"
-                })
-                self.assertEqual(response.status_code, 400)
-                self.assertIn(b"Report already submitted", response.data)
+                    conn_mock = MagicMock()
+                    conn_mock.execute.side_effect = execute_query
+                    mock_db.return_value.__enter__.return_value = conn_mock
+
+                    response = post_form(self.client, "/moderation/report", {
+                        "conversation_id": "10",
+                        "reason": "Harassment",
+                        "explanation": "Second report attempt"
+                    })
+                    self.assertEqual(response.status_code, 400)
+                    self.assertIn(b"Report already submitted", response.data)
 
     # 7. Admin can review reports and reported messages
     def test_admin_can_review_reports_and_conversation(self):
@@ -222,6 +228,124 @@ class RBACAndModerationUnitTests(unittest.TestCase):
             self.assertEqual(self.client.get("/register").status_code, 200)
             self.assertIn(b"Log in", self.client.get("/login").data)
             self.assertIn(b"Create account", self.client.get("/register").data)
+
+    # 11. Navigation Messages link points to new Messenger route
+    def test_navigation_messages_link_points_to_messenger(self):
+        with patch.object(database, "connect", side_effect=AssertionError("Unexpected DB access")):
+            res = self.client.get("/login")
+            self.assertEqual(res.status_code, 200)
+            html = res.get_data(as_text=True)
+            self.assertIn('href="/messenger"', html)
+            # Ensure the old /messages is not used as the main navigation link
+            self.assertNotIn('href="/messages"', html)
+
+    # 12. Navigation Admin Dashboard link visibility by role
+    def test_navigation_admin_dashboard_visibility_by_role(self):
+        # Unauthenticated: no Admin Dashboard link
+        with patch.object(database, "connect", side_effect=AssertionError("Unexpected DB access")):
+            res = self.client.get("/login")
+            self.assertEqual(res.status_code, 200)
+            self.assertNotIn("Admin Dashboard", res.get_data(as_text=True))
+
+        # Logged in as standard student: no Admin Dashboard link
+        self.set_session_user(1)
+        with patch.object(auth, "current_student", return_value={"student_id": 1, "full_name": "Student User"}):
+            with patch.object(rbac, "is_admin", return_value=False):
+                with patch.object(database, "connect") as mock_db, patch.object(web_module, "connect", mock_db):
+                    mock_cursor = MagicMock()
+                    mock_cursor.fetchall.return_value = []
+                    mock_db.return_value.__enter__.return_value.execute.return_value = mock_cursor
+
+                    res = self.client.get("/sales")
+                    self.assertEqual(res.status_code, 200)
+                    html = res.get_data(as_text=True)
+                    self.assertNotIn("Admin Dashboard", html)
+                    self.assertIn("Student account", html)
+
+        # Logged in as administrator: Admin Dashboard link is rendered
+        self.set_session_user(99)
+        with patch.object(auth, "current_student", return_value={"student_id": 99, "full_name": "Admin User"}):
+            with patch.object(rbac, "is_admin", return_value=True):
+                with patch.object(database, "connect") as mock_db, patch.object(web_module, "connect", mock_db):
+                    mock_cursor = MagicMock()
+                    mock_cursor.fetchall.return_value = []
+                    mock_db.return_value.__enter__.return_value.execute.return_value = mock_cursor
+
+                    res = self.client.get("/sales")
+                    self.assertEqual(res.status_code, 200)
+                    html = res.get_data(as_text=True)
+                    self.assertIn('href="/admin/dashboard"', html)
+                    self.assertIn("Admin Dashboard", html)
+                    self.assertIn("Administrator", html)
+
+    # 13. Navigation active state highlighting
+    def test_navigation_active_highlighting(self):
+        # Messenger active highlighting
+        self.set_session_user(1)
+        with patch.object(auth, "current_student", return_value={"student_id": 1, "full_name": "Student User"}):
+            with patch.object(database, "connect") as mock_db:
+                mock_cursor = MagicMock()
+                mock_cursor.fetchall.return_value = []
+                mock_db.return_value.__enter__.return_value.execute.return_value = mock_cursor
+
+                res = self.client.get("/messenger")
+                self.assertEqual(res.status_code, 200)
+                html = res.get_data(as_text=True)
+                self.assertIn('class="active" href="/messenger"', html)
+
+        # Admin active highlighting
+        self.set_session_user(99)
+        with patch.object(auth, "current_student", return_value={"student_id": 99, "full_name": "Admin User"}):
+            with patch.object(rbac, "is_admin", return_value=True):
+                with patch.object(rbac, "get_user_role", return_value="admin"):
+                    with patch.object(database, "connect") as mock_db:
+                        mock_cursor = MagicMock()
+                        mock_cursor.fetchall.return_value = []
+                        mock_db.return_value.__enter__.return_value.execute.return_value = mock_cursor
+
+                        res = self.client.get("/admin/dashboard")
+                        self.assertEqual(res.status_code, 200)
+                        html = res.get_data(as_text=True)
+                        self.assertIn('class="active" href="/admin/dashboard"', html)
+
+    # 14. Catalog contact seller initiates new Messenger flow
+    def test_catalog_contact_seller_initiates_messenger(self):
+        with patch.object(auth, "current_student", return_value={"student_id": 2, "full_name": "Buyer Student"}):
+            with patch.object(database, "connect") as mock_db, patch.object(web_module, "connect", mock_db):
+                def execute_catalog(query, params=()):
+                    cursor = MagicMock()
+                    if "FROM categories" in query:
+                        cursor.fetchall.return_value = [{"category_id": 1, "category_name": "Books and Study"}]
+                    elif "FROM products" in query:
+                        cursor.fetchall.return_value = [{
+                            "product_id": 1,
+                            "product_name": "Textbook",
+                            "description": "Good condition",
+                            "price": 2000,
+                            "item_condition": "Good",
+                            "status": "Available",
+                            "category_name": "Books and Study",
+                            "seller": "Seller Student",
+                            "seller_id": 1,
+                            "rating": None,
+                            "review_count": 0,
+                            "product_rating": None,
+                            "product_rating_count": 0,
+                            "my_stars": None,
+                            "photo_id": None
+                        }]
+                    else:
+                        cursor.fetchall.return_value = []
+                    return cursor
+
+                conn_mock = MagicMock()
+                conn_mock.execute.side_effect = execute_catalog
+                mock_db.return_value.__enter__.return_value = conn_mock
+
+                res = self.client.get("/")
+                self.assertEqual(res.status_code, 200)
+                html = res.get_data(as_text=True)
+                self.assertIn('action="/messenger/start"', html)
 
 
 if __name__ == "__main__":
