@@ -1,20 +1,24 @@
 {% extends "base.html" %}
+{% from 'stars.html' import product_stars, sale_controls with context %}
 {% block content %}
 <section class="hero"><div><div class="eyebrow">THE CAMPUS COLLECTION</div><h1>A little less new.<br>A little more you.</h1><p>Discover everyday essentials, share your good finds, and make campus life a little lighter.</p></div>
 <div class="stats"><span class="stat"><b>{{ counts.get('Available', 0) }}</b> available</span><span class="stat"><b>{{ counts.get('Sold', 0) }}</b> sold</span></div></section>
 <div class="workspace"><section class="panel">
-<div class="panel-heading"><div><div class="eyebrow">Student listings</div><h2>Marketplace catalog</h2></div><span class="subtle">{{ rows|length }} listing{{ '' if rows|length == 1 else 's' }}</span></div>
+<div class="panel-heading"><div><div class="eyebrow">Student listings</div><h2>{{ 'My listings' if mine else 'Marketplace catalog' }}</h2></div><span class="subtle">{{ rows|length }} listing{{ '' if rows|length == 1 else 's' }}</span></div>
 <form class="filters" method="get" action="/">
+  {% if mine %}<input type="hidden" name="scope" value="mine">{% endif %}
   <input name="q" placeholder="Search by item, description, or seller" value="{{ search }}" aria-label="Search listings">
   <select name="category" aria-label="Category"><option value="">All categories</option>{% for c in categories %}<option value="{{ c.category_id }}" {% if c.category_id|string == category %}selected{% endif %}>{{ c.category_name }}</option>{% endfor %}</select>
   <select name="status" aria-label="Listing status">{% for value in statuses %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ 'All listings' if value == 'All' else value }}</option>{% endfor %}</select><button type="submit">Search</button>
 </form>
 <div class="catalog">
 {% for r in rows %}
-<article class="listing">
+<article class="listing" id="item-{{ r.product_id }}">
   <a class="listing-image" href="{{ url_for('item_detail', product_id=r.product_id) }}" aria-label="View {{ r.product_name }}">{% if r.photo_id %}<img src="{{ url_for('product_photo', photo_id=r.photo_id) }}" alt="{{ r.product_name }}" loading="lazy">{% else %}<span class="product-placeholder" aria-hidden="true">{{ {'Electronics':'⌘', 'Books and Study':'▤', 'Dorm Essentials':'⌂', 'Clothing and Bags':'♧'}.get(r.category_name,'◇') }}</span><span class="photo-placeholder-label">{{ r.category_name }}</span>{% endif %}</a>
   <div class="listing-top"><div><div class="tags"><span class="tag">{{ r.category_name }}</span><span class="tag">{{ r.item_condition }}</span></div><h3 style="margin-top:9px"><a href="{{ url_for('item_detail', product_id=r.product_id) }}">{{ r.product_name }}</a></h3></div><span class="badge {{ 'sold' if r.status != 'Available' else '' }}">{{ r.status }}</span></div>
   <div class="description">{{ r.description }}</div><div class="card-bottom"><div><div class="price">{{ r.price|money }}</div><div class="seller">{{ r.seller }} <span class="seller-rating">{% if r.rating %}★ {{ r.rating }} <span class="muted">({{ r.review_count }})</span>{% else %}☆ New seller{% endif %}</span></div></div></div>
+  {{ product_stars(r.product_id, r.product_rating, r.product_rating_count, r.my_stars, 'catalog') }}
+  {{ sale_controls(r.product_id, r.seller_id, r.status) }}
   {% if r.status == 'Available' %}
   <a class="button checkout-link" href="{{ url_for('checkout', product_id=r.product_id) }}">Buy this item <span aria-hidden="true">→</span></a>
   <span class="muted">Demo checkout · no real charges</span>

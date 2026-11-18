@@ -77,6 +77,10 @@ def health():
 
 @app.get("/")
 def catalog():
+    user = auth.current_student()
+    mine = request.args.get("scope") == "mine"
+    if mine and not user:
+        return redirect(url_for("auth.login", next="/?scope=mine&status=All"))
     search = request.args.get("q", "").strip()
     status = request.args.get("status", "Available")
     if status not in STATUSES:
@@ -90,6 +94,9 @@ def catalog():
     except ValueError:
         category = ""
     clauses, args = [], []
+    if mine:
+        clauses.append("p.seller_id = ?")
+        args.append(user["student_id"])
     if status != "All":
         clauses.append("p.status = ?")
         args.append(status)
@@ -106,19 +113,22 @@ def catalog():
         rows = conn.execute("""SELECT p.product_id, p.product_name, p.description, p.price,
             p.item_condition, p.status, c.category_name, s.full_name AS seller, s.student_id AS seller_id,
             (SELECT photo_id FROM product_photos ph WHERE ph.product_id=p.product_id ORDER BY position LIMIT 1) AS photo_id,
+            (SELECT ROUND(AVG(stars),1) FROM product_ratings WHERE product_id=p.product_id) AS product_rating,
+            (SELECT COUNT(*) FROM product_ratings WHERE product_id=p.product_id) AS product_rating_count,
+            (SELECT stars FROM product_ratings WHERE product_id=p.product_id AND student_id=?) AS my_stars,
             (SELECT ROUND(AVG(rv.stars),1) FROM seller_reviews rv JOIN purchases pu ON pu.purchase_id=rv.purchase_id
                 JOIN products pr ON pr.product_id=pu.product_id WHERE pr.seller_id=s.student_id) AS rating,
             (SELECT COUNT(*) FROM seller_reviews rv JOIN purchases pu ON pu.purchase_id=rv.purchase_id
                 JOIN products pr ON pr.product_id=pu.product_id WHERE pr.seller_id=s.student_id) AS review_count
             FROM products p JOIN categories c ON c.category_id=p.category_id
             JOIN students s ON s.student_id=p.seller_id""" + where +
-            " ORDER BY CASE p.status WHEN 'Available' THEN 0 ELSE 1 END, p.price, p.product_id", args).fetchall()
+            " ORDER BY CASE p.status WHEN 'Available' THEN 0 ELSE 1 END, p.price, p.product_id", [user["student_id"] if user else None, *args]).fetchall()
         counts = {row["status"]: row["n"] for row in conn.execute("SELECT status, COUNT(*) AS n FROM products GROUP BY status")}
     return render_template("catalog.html", title="Marketplace catalog", rows=rows,
                            categories=categories, people=people, counts=counts,
                            search=search, status=status, category=category,
                            conditions=CONDITIONS, statuses=STATUSES,
-                           notice=request.args.get("notice", ""))
+                           mine=mine, notice=request.args.get("notice", ""))
 
 
 @app.get("/sales")
@@ -283,7 +293,54 @@ def item_detail(product_id):
         rating = conn.execute("""SELECT ROUND(AVG(rv.stars),1), COUNT(*) FROM seller_reviews rv
             JOIN purchases pu ON pu.purchase_id=rv.purchase_id JOIN products p ON p.product_id=pu.product_id
             WHERE p.seller_id=?""", (product["seller_id"],)).fetchone()
-    return render_template("item.html", title=product["product_name"], product=product, photos=photos, reviews=reviews, rating=rating)
+        product_rating = conn.execute("SELECT ROUND(AVG(stars),1), COUNT(*) FROM product_ratings WHERE product_id=?", (product_id,)).fetchone()
+        user = auth.current_student()
+        my_rating = conn.execute("SELECT stars FROM product_ratings WHERE product_id=? AND student_id=?",
+                                 (product_id, user["student_id"] if user else None)).fetchone()
+    return render_template("item.html", title=product["product_name"], product=product, photos=photos, reviews=reviews,
+                           rating=rating, product_rating=product_rating, my_stars=my_rating[0] if my_rating else None,
+                           notice=request.args.get("notice", ""))
+
+
+@app.post("/items/<int:product_id>/rating")
+@auth.login_required
+def rate_product(product_id):
+    if not 0 < product_id <= 2147483647:
+        return not_found(None)
+    try:
+        stars = int(request.form.get("stars", ""))
+        if not 1 <= stars <= 5:
+            raise ValueError
+    except ValueError:
+        return render_template("error.html", title="Invalid rating", message="Choose between 1 and 5 stars."), 400
+    with connect() as conn:
+        if not conn.execute("SELECT 1 FROM products WHERE product_id=?", (product_id,)).fetchone():
+            return not_found(None)
+        conn.execute("""INSERT INTO product_ratings (product_id, student_id, stars) VALUES (?, ?, ?)
+            ON CONFLICT (product_id, student_id) DO UPDATE SET stars=EXCLUDED.stars, updated_at=CURRENT_TIMESTAMP""",
+            (product_id, auth.current_student()["student_id"], stars))
+    if request.form.get("return_view") == "catalog":
+        return redirect(url_for("catalog", status="All", notice="Your product rating was saved") + f"#item-{product_id}", code=303)
+    return redirect(url_for("item_detail", product_id=product_id, notice="Your product rating was saved"), code=303)
+
+
+@app.post("/listing/<int:product_id>/<action>")
+@auth.login_required
+def listing_availability(product_id, action):
+    if not 0 < product_id <= 2147483647 or action not in ("cancel", "restore"):
+        return not_found(None)
+    with connect() as conn:
+        product = conn.execute("SELECT seller_id, status FROM products WHERE product_id=? FOR UPDATE", (product_id,)).fetchone()
+        if not product:
+            return not_found(None)
+        if product["seller_id"] != auth.current_student()["student_id"]:
+            return render_template("error.html", title="Access denied", message="Only the seller can change this listing."), 403
+        if product["status"] == "Sold" or conn.execute("SELECT 1 FROM purchases WHERE product_id=?", (product_id,)).fetchone():
+            return render_template("error.html", title="Sale already completed", message="This item has already been purchased. Its completed order cannot be cancelled from the listing."), 409
+        status = "Removed" if action == "cancel" else "Available"
+        conn.execute("UPDATE products SET status=? WHERE product_id=?", (status, product_id))
+    notice = "Listing withdrawn. It can no longer be purchased." if action == "cancel" else "Your item is available for sale again."
+    return redirect(url_for("catalog", scope="mine", status="All", notice=notice), code=303)
 
 
 @app.post("/reviews/<int:purchase_id>")

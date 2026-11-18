@@ -1,0 +1,23 @@
+{% macro product_stars(product_id, average, count, my_stars, return_view='item') %}
+<div class="product-rating">
+  <div class="product-rating-summary"><strong>Product rating</strong><span>{% if count %}{{ average }} / 5 · {{ count }} rating{{ '' if count == 1 else 's' }}{% else %}No ratings yet{% endif %}</span></div>
+  {% if current_user %}
+  <form method="post" action="{{ url_for('rate_product', product_id=product_id) }}" class="star-rating-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="return_view" value="{{ return_view }}">
+    <fieldset class="star-fieldset"><legend>{{ 'Your rating: ' ~ my_stars ~ '/5 — click to change' if my_stars else 'Click a star to rate this item' }}</legend>
+    <div class="star-buttons">{% for n in range(1,6) %}<button type="submit" name="stars" value="{{ n }}" class="star-button {{ 'filled' if my_stars and n <= my_stars else '' }}" aria-label="Rate {{ n }} out of 5 stars" title="{{ n }} out of 5 stars">★</button>{% endfor %}</div></fieldset>
+  </form>
+  {% else %}<div class="rating-readonly" aria-label="{{ average or 0 }} out of 5 stars">{% for n in range(1,6) %}<span class="{{ 'filled' if average and n <= average|round|int else '' }}">★</span>{% endfor %}</div><a class="hint" href="{{ url_for('auth.login', next='/items/' ~ product_id) }}">Log in to rate this item</a>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro sale_controls(product_id, seller_id, status) %}
+{% if current_user and current_user.student_id == seller_id and status in ('Available','Removed') %}
+<form class="sale-control" method="post" action="{{ url_for('listing_availability', product_id=product_id, action='cancel' if status == 'Available' else 'restore') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button type="submit" class="secondary">{{ 'Withdraw from sale' if status == 'Available' else 'List for sale again' }}</button>
+  <p class="hint">{{ 'Hides the listing from available items and blocks checkout.' if status == 'Available' else 'Restores this item to the marketplace.' }}</p>
+</form>
+{% endif %}
+{% endmacro %}

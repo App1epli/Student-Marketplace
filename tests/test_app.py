@@ -236,6 +236,56 @@ class PostgreSQLTests(unittest.TestCase):
             self.assertEqual(conn.execute('SELECT COUNT(*) FROM seller_reviews WHERE purchase_id=?', (purchase_id,)).fetchone()[0], 1)
             self.assertEqual(conn.execute('SELECT stars FROM seller_reviews WHERE purchase_id=?', (purchase_id,)).fetchone()[0], 4)
 
+    def test_product_rating_without_purchase_and_update(self):
+        product_id = self.create_listing('Rate any item')
+        url = f'/items/{product_id}/rating'
+        self.assertEqual(post_form(self.client, url, dict(stars='5')).status_code, 302)
+        with self.client.session_transaction() as session:
+            session['student_id'] = 2
+        for stars in ('0', '6', '', 'five'):
+            self.assertEqual(post_form(self.client, url, dict(stars=stars)).status_code, 400)
+        self.assertEqual(post_form(self.client, url, dict(stars='5', student_id='3')).status_code, 303)
+        self.assertIn(b'Your rating: 5/5', self.client.get(f'/items/{product_id}').data)
+        self.assertEqual(post_form(self.client, url, dict(stars='3')).status_code, 303)
+        with self.client.session_transaction() as session:
+            session['student_id'] = 3
+        post_form(self.client, url, dict(stars='5'))
+        with database.connect() as conn:
+            rows = conn.execute('SELECT student_id, stars FROM product_ratings WHERE product_id=? ORDER BY student_id', (product_id,)).fetchall()
+            self.assertEqual([tuple(row) for row in rows], [(2, 3), (3, 5)])
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM purchases WHERE product_id=?', (product_id,)).fetchone()[0], 0)
+        self.assertIn(b'4.0 / 5', self.client.get(f'/items/{product_id}').data)
+        self.assertIn(b'Rate 5 out of 5 stars', self.client.get('/?status=All').data)
+
+    def test_withdraw_restore_and_owner_permissions(self):
+        product_id = self.create_listing('Withdraw this')
+        cancel = f'/listing/{product_id}/cancel'
+        self.assertEqual(post_form(self.client, cancel).status_code, 302)
+        with self.client.session_transaction() as session:
+            session['student_id'] = 2
+        self.assertEqual(post_form(self.client, cancel).status_code, 403)
+        with self.client.session_transaction() as session:
+            session['student_id'] = 1
+        self.assertIn(b'Withdraw from sale', self.client.get('/?scope=mine&status=All').data)
+        form = self.checkout_form(product_id, buyer=2)
+        self.assertEqual(post_form(self.client, cancel).status_code, 303)
+        # Repeating withdrawal is harmless.
+        self.assertEqual(post_form(self.client, cancel).status_code, 303)
+        with database.connect() as conn:
+            self.assertEqual(conn.execute('SELECT status FROM products WHERE product_id=?', (product_id,)).fetchone()[0], 'Removed')
+        self.assertNotIn(f'id="item-{product_id}"'.encode(), self.client.get('/?q=Withdraw+this').data)
+        self.assertIn(b'List for sale again', self.client.get('/?scope=mine&status=All').data)
+        self.assertEqual(post_form(self.client, f'/checkout/{product_id}', form).status_code, 409)
+        # Removed and sold items can still be rated.
+        self.assertEqual(post_form(self.client, f'/items/{product_id}/rating', dict(stars='4')).status_code, 303)
+        self.assertEqual(post_form(self.client, f'/listing/{product_id}/restore').status_code, 303)
+        self.assertEqual(post_form(self.client, f'/checkout/{product_id}', form).status_code, 303)
+        self.assertEqual(post_form(self.client, cancel).status_code, 409)
+        self.assertEqual(post_form(self.client, f'/listing/{product_id}/restore').status_code, 409)
+        with database.connect() as conn:
+            self.assertEqual(conn.execute('SELECT status FROM products WHERE product_id=?', (product_id,)).fetchone()[0], 'Sold')
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM purchases WHERE product_id=?', (product_id,)).fetchone()[0], 1)
+
     def test_catalog_filters_and_html_escaping(self):
         self.create_listing("<script>alert(1)</script>")
         response = self.client.get("/?q=%3Cscript%3E&category=1&status=Available")

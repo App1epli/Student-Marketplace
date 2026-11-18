@@ -1,6 +1,9 @@
 {% extends 'base.html' %}
+{% from 'stars.html' import product_stars, sale_controls with context %}
 {% block content %}
 <a class="back-link" href="/">← Back to marketplace</a>
+{{ product_stars(product.product_id, product_rating[0], product_rating[1], my_stars) }}
+{{ sale_controls(product.product_id, product.seller_id, product.status) }}
 <div class="item-layout"><section class="panel item-gallery"><div class="eyebrow">THE CAMPUS COLLECTION</div>
 {% if photos %}{% for photo in photos %}<img src="{{ url_for('product_photo', photo_id=photo.photo_id) }}" alt="{{ product.product_name }} — photo {{ loop.index }}" {% if not loop.first %}loading="lazy"{% endif %}>{% endfor %}{% else %}<div class="gallery-placeholder">◇<span>No photos added yet</span></div>{% endif %}</section>
 <section class="panel item-info"><div class="tags"><span class="tag">{{ product.category_name }}</span><span class="badge">{{ product.status }}</span></div><h1>{{ product.product_name }}</h1><p class="price">{{ product.price|money }}</p><p class="item-description">{{ product.description }}</p><p class="subtle">Condition: {{ product.item_condition }}</p><hr><div class="eyebrow">MEET YOUR SELLER</div><h2>{{ product.seller }}</h2><p class="seller-rating">{% if rating[0] %}★ {{ rating[0] }} / 5 <span class="muted">· {{ rating[1] }} verified buyer reviews</span>{% else %}☆ New seller · no reviews yet{% endif %}</p>{% if product.status == 'Available' %}<a class="button checkout-link" href="{{ url_for('checkout', product_id=product.product_id) }}">Buy this item →</a>{% endif %}<p class="hint">Demo payments · No real charges</p></section></div>
