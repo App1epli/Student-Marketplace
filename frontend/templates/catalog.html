@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="hero"><div><div class="eyebrow">Buy nearby, sell with ease</div><h1>Find what you need for school</h1><p>Textbooks, electronics, and dorm essentials listed by students at your university.</p></div>
+<section class="hero"><div><div class="eyebrow">THE CAMPUS COLLECTION</div><h1>A little less new.<br>A little more you.</h1><p>Discover everyday essentials, share your good finds, and make campus life a little lighter.</p></div>
 <div class="stats"><span class="stat"><b>{{ counts.get('Available', 0) }}</b> available</span><span class="stat"><b>{{ counts.get('Sold', 0) }}</b> sold</span></div></section>
 <div class="workspace"><section class="panel">
 <div class="panel-heading"><div><div class="eyebrow">Student listings</div><h2>Marketplace catalog</h2></div><span class="subtle">{{ rows|length }} listing{{ '' if rows|length == 1 else 's' }}</span></div>
@@ -12,8 +12,9 @@
 <div class="catalog">
 {% for r in rows %}
 <article class="listing">
-  <div class="listing-top"><div><div class="tags"><span class="tag">{{ r.category_name }}</span><span class="tag">{{ r.item_condition }}</span></div><h3 style="margin-top:9px">{{ r.product_name }}</h3></div><span class="badge {{ 'sold' if r.status != 'Available' else '' }}">{{ r.status }}</span></div>
-  <div class="description">{{ r.description }}</div><div class="card-bottom"><div><div class="price">{{ r.price|money }}</div><div class="seller">Seller: {{ r.seller }}</div></div></div>
+  <a class="listing-image" href="{{ url_for('item_detail', product_id=r.product_id) }}" aria-label="View {{ r.product_name }}">{% if r.photo_id %}<img src="{{ url_for('product_photo', photo_id=r.photo_id) }}" alt="{{ r.product_name }}" loading="lazy">{% else %}<span class="product-placeholder" aria-hidden="true">{{ {'Electronics':'⌘', 'Books and Study':'▤', 'Dorm Essentials':'⌂', 'Clothing and Bags':'♧'}.get(r.category_name,'◇') }}</span><span class="photo-placeholder-label">{{ r.category_name }}</span>{% endif %}</a>
+  <div class="listing-top"><div><div class="tags"><span class="tag">{{ r.category_name }}</span><span class="tag">{{ r.item_condition }}</span></div><h3 style="margin-top:9px"><a href="{{ url_for('item_detail', product_id=r.product_id) }}">{{ r.product_name }}</a></h3></div><span class="badge {{ 'sold' if r.status != 'Available' else '' }}">{{ r.status }}</span></div>
+  <div class="description">{{ r.description }}</div><div class="card-bottom"><div><div class="price">{{ r.price|money }}</div><div class="seller">{{ r.seller }} <span class="seller-rating">{% if r.rating %}★ {{ r.rating }} <span class="muted">({{ r.review_count }})</span>{% else %}☆ New seller{% endif %}</span></div></div></div>
   {% if r.status == 'Available' %}
   <a class="button checkout-link" href="{{ url_for('checkout', product_id=r.product_id) }}">Buy this item <span aria-hidden="true">→</span></a>
   <span class="muted">Demo checkout · no real charges</span>

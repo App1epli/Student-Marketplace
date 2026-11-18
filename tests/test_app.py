@@ -48,6 +48,19 @@ class ApplicationTests(unittest.TestCase):
         from app import app
         self.assertIs(app, web.app)
 
+    def test_photo_validation(self):
+        from io import BytesIO
+        from PIL import Image
+        from werkzeug.datastructures import FileStorage
+        from backend.media import prepare_photos
+        image = BytesIO()
+        Image.new("RGB", (20, 20), "purple").save(image, "PNG")
+        result = prepare_photos([FileStorage(stream=BytesIO(image.getvalue()), filename="test.png")])
+        self.assertTrue(result[0].startswith(b"\xff\xd8"))
+        for data in (b'<svg onload="alert(1)"></svg>', b'x' * 1048577):
+            with self.assertRaises(ValueError):
+                prepare_photos([FileStorage(stream=BytesIO(data), filename="fake.jpg")])
+
     def test_static_and_not_found_need_no_database(self):
         with patch.object(web, "connect", side_effect=AssertionError("Unexpected DB access")):
             response = self.client.get("/static/styles.css")
@@ -65,7 +78,7 @@ class ApplicationTests(unittest.TestCase):
                 self.assertNotIn(b"secret-password", response.data)
 
     def test_invalid_listing_does_not_access_database(self):
-        with patch.object(web, "connect", side_effect=AssertionError("Unexpected DB access")):
+        with patch.object(web, "connect", side_effect=AssertionError("Unexpected DB access")), patch.object(web.auth, "current_student", return_value={"student_id": 1, "full_name": "Test Student"}):
             for price in ("NaN", "Infinity", "-1", "0", "100000000", "text"):
                 with self.subTest(price=price):
                     response = post_form(self.client, "/listing", dict(
@@ -92,7 +105,7 @@ class ApplicationTests(unittest.TestCase):
             self.assertNotEqual(response.status_code, 400)
 
     def test_request_size_limit(self):
-        self.assertEqual(self.client.post("/listing", data={"description": "x" * 21_000}).status_code, 413)
+        self.assertEqual(self.client.post("/listing", data={"description": "x" * (4 * 1048576)}).status_code, 413)
 
     def test_checkout_id_bounds_and_money(self):
         with patch.object(web, "connect", side_effect=AssertionError("Unexpected DB access")):
@@ -149,11 +162,79 @@ class PostgreSQLTests(unittest.TestCase):
         self.client = web.app.test_client()
 
     def create_listing(self, name="Integration item", seller_id=1):
-        response = post_form(self.client, "/listing", dict(seller_id=str(seller_id), category_id="1",
-            product_name=name, description="Test description", price="1234.50", item_condition="Good"))
+        with patch.object(web.auth, "current_student", return_value={"student_id": seller_id, "full_name": "Test Student"}):
+            response = post_form(self.client, "/listing", dict(seller_id=str(seller_id), category_id="1",
+                product_name=name, description="Test description", price="1234.50", item_condition="Good"))
         self.assertEqual(response.status_code, 303)
         with database.connect() as conn:
             return conn.execute("SELECT MAX(product_id) FROM products").fetchone()[0]
+
+    def test_photo_upload_and_persistent_retrieval(self):
+        from io import BytesIO
+        from PIL import Image
+        image = BytesIO()
+        Image.new('RGB', (40, 30), 'purple').save(image, 'PNG')
+        with self.client.session_transaction() as session:
+            session['student_id'] = 1
+        response = post_form(self.client, '/listing', dict(category_id='1', seller_id='2',
+            product_name='Photo item', description='With photos', price='1500', item_condition='Good',
+            photos=(BytesIO(image.getvalue()), 'photo.png')))
+        self.assertEqual(response.status_code, 303)
+        with database.connect() as conn:
+            row = conn.execute('SELECT photo_id, product_id FROM product_photos ORDER BY product_id DESC LIMIT 1').fetchone()
+            self.assertEqual(conn.execute('SELECT seller_id FROM products WHERE product_id=?', (row['product_id'],)).fetchone()[0], 1)
+        photo = web.app.test_client().get(f'/photos/{row["photo_id"]}')
+        self.assertEqual(photo.status_code, 200)
+        self.assertEqual(photo.mimetype, 'image/jpeg')
+        self.assertTrue(photo.data.startswith(b'\xff\xd8'))
+        self.assertEqual(self.client.get(f'/items/{row["product_id"]}').status_code, 200)
+
+    def test_persistent_session_key_without_environment(self):
+        from flask import Flask, session
+        from backend.session_config import PersistentSessionInterface
+        def make_app():
+            instance = Flask('session-test')
+            instance.session_interface = PersistentSessionInterface()
+            @instance.get('/set')
+            def set_session():
+                session['example'] = 'persisted'
+                return 'ok'
+            @instance.get('/read')
+            def read_session():
+                return session.get('example', 'missing')
+            return instance
+        with patch('backend.session_config.connect', side_effect=lambda: database.connect()):
+            first = make_app()
+            client = first.test_client()
+            self.assertEqual(client.get('/set').status_code, 200)
+            second = make_app()
+            other = second.test_client()
+            other.set_cookie('session', client.get_cookie('session').value)
+            self.assertEqual(other.get('/read').data, b'persisted')
+            self.assertEqual(first.secret_key, second.secret_key)
+            self.assertGreaterEqual(len(first.secret_key), 64)
+
+    def test_review_requires_actual_buyer_and_updates_once(self):
+        product_id = self.create_listing('Reviewable item')
+        form = self.checkout_form(product_id, buyer=2)
+        self.assertEqual(post_form(self.client, f'/checkout/{product_id}', form).status_code, 303)
+        with database.connect() as conn:
+            purchase_id = conn.execute('SELECT purchase_id FROM purchases WHERE product_id=?', (product_id,)).fetchone()[0]
+        url = f'/reviews/{purchase_id}'
+        self.assertEqual(post_form(self.client, url, dict(stars='5')).status_code, 302)
+        with self.client.session_transaction() as session:
+            session['student_id'] = 3
+        self.assertEqual(post_form(self.client, url, dict(stars='5')).status_code, 403)
+        with self.client.session_transaction() as session:
+            session['student_id'] = 2
+        self.assertEqual(post_form(self.client, url, dict(stars='6')).status_code, 400)
+        self.assertEqual(post_form(self.client, url, dict(stars='5', comment='<script>review</script>')).status_code, 303)
+        page = self.client.get(f'/items/{product_id}')
+        self.assertIn(b'&lt;script&gt;', page.data)
+        self.assertEqual(post_form(self.client, url, dict(stars='4', comment='Updated')).status_code, 303)
+        with database.connect() as conn:
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM seller_reviews WHERE purchase_id=?', (purchase_id,)).fetchone()[0], 1)
+            self.assertEqual(conn.execute('SELECT stars FROM seller_reviews WHERE purchase_id=?', (purchase_id,)).fetchone()[0], 4)
 
     def test_catalog_filters_and_html_escaping(self):
         self.create_listing("<script>alert(1)</script>")

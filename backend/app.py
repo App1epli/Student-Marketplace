@@ -10,20 +10,24 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from uuid import uuid4
 
-from flask import Flask, g, redirect, render_template, request, send_from_directory, url_for
+from flask import Flask, Response, g, redirect, render_template, request, send_from_directory, url_for
 from flask_wtf.csrf import CSRFProtect
 
 from backend import auth, messaging
 from backend.database import connect, initialize_database, migrate_database, psycopg2
 from backend.payments import CheckoutError, complete_purchase, demo_buyer_id
 from backend.cards import add_card, get_card
+from backend.media import prepare_photos
+from backend.session_config import PersistentSessionInterface
 
 ROOT = Path(__file__).resolve().parents[1]
 app = Flask(__name__, template_folder=str(ROOT / "frontend/templates"), static_folder=None)
-app.config["MAX_CONTENT_LENGTH"] = 20_000
+app.config["MAX_CONTENT_LENGTH"] = 3 * 1048576 + 100_000
 app.secret_key = os.environ.get("SECRET_KEY")
 if not app.secret_key:
-    raise RuntimeError("Set SECRET_KEY in the environment (see .env.example). Never commit a real value.")
+    app.session_interface = PersistentSessionInterface()
+app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
+                  SESSION_COOKIE_SECURE=bool(os.environ.get("VERCEL")))
 csrf = CSRFProtect(app)
 app.register_blueprint(auth.bp)
 app.register_blueprint(messaging.bp)
@@ -50,7 +54,7 @@ def money(value):
 @app.after_request
 def response_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
-    if response.mimetype != "text/css":
+    if response.mimetype not in ("text/css", "image/jpeg"):
         response.headers["Cache-Control"] = "no-store"
     if getattr(g, "new_wallet", False):
         response.set_cookie("demo_wallet", g.wallet_token, max_age=30 * 24 * 60 * 60,
@@ -100,7 +104,12 @@ def catalog():
         categories = conn.execute("SELECT category_id, category_name FROM categories WHERE is_active ORDER BY category_name").fetchall()
         people = conn.execute("SELECT student_id, full_name FROM students ORDER BY full_name").fetchall()
         rows = conn.execute("""SELECT p.product_id, p.product_name, p.description, p.price,
-            p.item_condition, p.status, c.category_name, s.full_name AS seller, s.student_id AS seller_id
+            p.item_condition, p.status, c.category_name, s.full_name AS seller, s.student_id AS seller_id,
+            (SELECT photo_id FROM product_photos ph WHERE ph.product_id=p.product_id ORDER BY position LIMIT 1) AS photo_id,
+            (SELECT ROUND(AVG(rv.stars),1) FROM seller_reviews rv JOIN purchases pu ON pu.purchase_id=rv.purchase_id
+                JOIN products pr ON pr.product_id=pu.product_id WHERE pr.seller_id=s.student_id) AS rating,
+            (SELECT COUNT(*) FROM seller_reviews rv JOIN purchases pu ON pu.purchase_id=rv.purchase_id
+                JOIN products pr ON pr.product_id=pu.product_id WHERE pr.seller_id=s.student_id) AS review_count
             FROM products p JOIN categories c ON c.category_id=p.category_id
             JOIN students s ON s.student_id=p.seller_id""" + where +
             " ORDER BY CASE p.status WHEN 'Available' THEN 0 ELSE 1 END, p.price, p.product_id", args).fetchall()
@@ -116,7 +125,8 @@ def catalog():
 def sales():
     with connect() as conn:
         rows = conn.execute("""SELECT pu.purchase_id, pu.purchase_date, pu.agreed_price,
-            pu.payment_method, pu.payment_status, pu.payment_reference,
+            pu.payment_method, pu.payment_status, pu.payment_reference, pu.buyer_id,
+            (SELECT stars FROM seller_reviews WHERE purchase_id=pu.purchase_id) AS review_stars,
             buyer.full_name AS buyer, p.product_name, seller.full_name AS seller
             FROM purchases pu JOIN students buyer ON buyer.student_id = pu.buyer_id
             JOIN products p ON p.product_id = pu.product_id
@@ -220,7 +230,11 @@ def listing():
     form = request.form
     try:
         name, description = form.get("product_name", "").strip(), form.get("description", "").strip()
-        seller_id, category_id = int(form["seller_id"]), int(form["category_id"])
+        user = auth.current_student()
+        if not user:
+            return redirect(url_for("auth.login", next="/#sell"), code=303)
+        seller_id, category_id = user["student_id"], int(form["category_id"])
+        photos = prepare_photos(request.files.getlist("photos"))
         price = Decimal(form["price"]).quantize(Decimal("0.01"))
         condition = form.get("item_condition", "")
         if (not name or len(name) > 120 or not description or not price.is_finite()
@@ -228,13 +242,74 @@ def listing():
                 or not 0 < seller_id <= 2147483647 or not 0 < category_id <= 2147483647):
             raise ValueError
         with connect() as conn:
-            conn.execute("""INSERT INTO products
+            product = conn.execute("""INSERT INTO products
                 (seller_id, category_id, product_name, description, price, item_condition)
-                VALUES (?, ?, ?, ?, ?, ?)""", (seller_id, category_id, name, description, price, condition))
+                VALUES (?, ?, ?, ?, ?, ?) RETURNING product_id""", (seller_id, category_id, name, description, price, condition)).fetchone()
+            for position, photo in enumerate(photos):
+                conn.execute("INSERT INTO product_photos (photo_id, product_id, image_data, position) VALUES (?, ?, ?, ?)",
+                             (str(uuid4()), product["product_id"], psycopg2.Binary(photo), position))
     except (KeyError, ValueError, InvalidOperation, psycopg2.IntegrityError):
         return render_template("error.html", title="Invalid listing",
-                               message="Check the required fields and enter a valid price above zero."), 400
+                               message="Check required fields, price and photos (up to 3 JPG/PNG/WebP files, 1 MB each)."), 400
     return redirect(url_for("catalog", notice="Listing published"), code=303)
+
+
+@app.get("/photos/<uuid:photo_id>")
+def product_photo(photo_id):
+    with connect() as conn:
+        row = conn.execute("SELECT image_data FROM product_photos WHERE photo_id=?", (str(photo_id),)).fetchone()
+    if not row:
+        return not_found(None)
+    response = Response(bytes(row[0]), mimetype="image/jpeg")
+    response.headers["Cache-Control"] = "public, max-age=86400, immutable"
+    return response
+
+
+@app.get("/items/<int:product_id>")
+def item_detail(product_id):
+    if product_id > 2147483647:
+        return not_found(None)
+    with connect() as conn:
+        product = conn.execute("""SELECT p.*, s.full_name AS seller, c.category_name FROM products p
+            JOIN students s ON s.student_id=p.seller_id JOIN categories c ON c.category_id=p.category_id
+            WHERE p.product_id=?""", (product_id,)).fetchone()
+        if not product:
+            return not_found(None)
+        photos = conn.execute("SELECT photo_id FROM product_photos WHERE product_id=? ORDER BY position", (product_id,)).fetchall()
+        reviews = conn.execute("""SELECT rv.stars, rv.comment, buyer.full_name AS buyer FROM seller_reviews rv
+            JOIN purchases pu ON pu.purchase_id=rv.purchase_id JOIN products p ON p.product_id=pu.product_id
+            JOIN students buyer ON buyer.student_id=pu.buyer_id WHERE p.seller_id=?
+            ORDER BY rv.created_at DESC LIMIT 50""", (product["seller_id"],)).fetchall()
+        rating = conn.execute("""SELECT ROUND(AVG(rv.stars),1), COUNT(*) FROM seller_reviews rv
+            JOIN purchases pu ON pu.purchase_id=rv.purchase_id JOIN products p ON p.product_id=pu.product_id
+            WHERE p.seller_id=?""", (product["seller_id"],)).fetchone()
+    return render_template("item.html", title=product["product_name"], product=product, photos=photos, reviews=reviews, rating=rating)
+
+
+@app.post("/reviews/<int:purchase_id>")
+@auth.login_required
+def review_purchase(purchase_id):
+    if purchase_id > 2147483647:
+        return not_found(None)
+    try:
+        stars = int(request.form.get("stars", ""))
+        comment = request.form.get("comment", "").strip()
+        if not 1 <= stars <= 5 or len(comment) > 500:
+            raise ValueError
+        with connect() as conn:
+            purchase = conn.execute("SELECT buyer_id FROM purchases WHERE purchase_id=?", (purchase_id,)).fetchone()
+            if not purchase or purchase["buyer_id"] != auth.current_student()["student_id"]:
+                return render_template("error.html", title="Review unavailable", message="Only the buyer can review this purchase."), 403
+            conn.execute("""INSERT INTO seller_reviews (purchase_id, stars, comment) VALUES (?, ?, ?)
+                ON CONFLICT (purchase_id) DO UPDATE SET stars=EXCLUDED.stars, comment=EXCLUDED.comment""", (purchase_id, stars, comment))
+    except ValueError:
+        return render_template("error.html", title="Invalid review", message="Choose 1–5 stars and keep your review under 500 characters."), 400
+    return redirect(url_for("sales", notice="Review saved"), code=303)
+
+
+@app.errorhandler(413)
+def too_large(error):
+    return render_template("error.html", title="Upload too large", message="Upload up to 3 photos, no larger than 1 MB each."), 413
 
 
 @app.post("/purchase")

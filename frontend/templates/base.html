@@ -3,19 +3,31 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#142d44">
+  <meta name="theme-color" content="#b49bd9">
   <title>{{ title }} | Student Marketplace</title>
   <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/lavender.css">
   <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
-<header><div class="topbar"><a class="brand" href="/"><span class="brand-mark">SM</span><span><span class="brand-title">Student Marketplace</span><br><span class="brand-sub">Good items, new owners</span></span></a><span class="demo-pill">Class project</span></div></header>
+<aside class="app-sidebar">
+  <a class="brand" href="/"><span class="brand-mark">SM</span><span>Marketplace<span class="brand-dot">.</span></span></a>
+  <div class="campus-workspace"><span class="campus-icon">S</span><div><strong>Student community</strong><small>Your campus marketplace</small></div><span class="online-dot"></span></div>
+  <p class="nav-label">WORKSPACE</p>
+  <nav class="side-nav">
+    <a class="{{ 'active' if request.path == '/' or request.path.startswith('/items') else '' }}" href="/"><span>▦</span> Marketplace</a>
+    <a class="{{ 'active' if request.path == '/sales' else '' }}" href="/sales"><span>▤</span> Purchases & ratings</a>
+    <a class="{{ 'active' if request.path.startswith('/messages') else '' }}" href="{{ url_for('messaging.inbox') }}"><span>◷</span> Messages</a>
+    <a href="/#sell"><span>＋</span> Sell an item</a>
+  </nav>
+  <div class="sidebar-bottom"><div class="community-note"><span>✧</span><strong>Good finds, closer to home.</strong><p>Give useful things a second life with your student community.</p></div>
+  <div class="sidebar-profile">{% if current_user %}<span class="profile-avatar">{{ current_user.full_name[0] }}</span><div><strong>{{ current_user.full_name }}</strong><small>Student account</small></div><form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="logout-button" aria-label="Log out">↪</button></form>{% else %}<span class="profile-avatar">S</span><div><strong>Welcome, student</strong><small><a href="{{ url_for('auth.login') }}">Log in</a> · <a href="{{ url_for('auth.register') }}">Join campus</a></small></div>{% endif %}</div></div>
+</aside>
+<div class="app-main"><header class="app-topbar"><div class="breadcrumb">Workspace <span>/</span> <strong>{{ title }}</strong></div><div class="topbar-actions"><span class="live-pill"><i></i> Campus community</span><a class="button secondary small" href="/#sell">＋ List an item</a></div></header>
 <main>
   {% if notice %}<div class="notice" role="status"><span class="notice-icon">✓</span><span>{{ notice }}</span></div>{% endif %}
-  <nav class="nav"><a {% if request.path == '/' %}class="active"{% endif %} href="/">Browse</a><a {% if request.path == '/sales' %}class="active"{% endif %} href="/sales">Purchase history</a>{% if current_user %}<a {% if request.path.startswith('/messages') %}class="active"{% endif %} href="{{ url_for('messaging.inbox') }}">Messages</a>{% endif %}</nav>
-  <nav class="nav" style="margin-top:-10px">{% if current_user %}<span class="subtle">Logged in as {{ current_user.full_name }}</span><form method="post" action="{{ url_for('auth.logout') }}" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="link-button">Log out</button></form>{% else %}<a href="{{ url_for('auth.login') }}">Log in</a><a href="{{ url_for('auth.register') }}">Create account</a>{% endif %}</nav>
   {% block content %}{% endblock %}
   <footer>Classroom demo. Sample marketplace accounts and listings are fictional.</footer>
-</main>
+</main></div>
 </body>
 </html>
