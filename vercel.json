@@ -5,7 +5,7 @@
   "functions": {
     "backend/app.py": {
       "maxDuration": 60,
-      "excludeFiles": "{.env,.env.*,deliverables/**,tests/**,__pycache__/**,apply_messaging.py,messaging.py}"
+      "excludeFiles": "{.env,.env.*,deliverables/**,tests/**,__pycache__/**}"
     }
   }
 }
