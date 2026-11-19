@@ -236,20 +236,20 @@ def receipt(reference):
 
 
 @app.post("/listing")
+@auth.login_required
 def listing():
     form = request.form
     try:
         name, description = form.get("product_name", "").strip(), form.get("description", "").strip()
         user = auth.current_student()
-        if not user:
-            return redirect(url_for("auth.login", next="/#sell"), code=303)
-        seller_id, category_id = user["student_id"], int(form["category_id"])
+        seller_id = user["student_id"]
+        category_id = int(form["category_id"])
         photos = prepare_photos(request.files.getlist("photos"))
         price = Decimal(form["price"]).quantize(Decimal("0.01"))
         condition = form.get("item_condition", "")
         if (not name or len(name) > 120 or not description or not price.is_finite()
                 or not 0 < price <= Decimal("99999999.99") or condition not in CONDITIONS
-                or not 0 < seller_id <= 2147483647 or not 0 < category_id <= 2147483647):
+                or not 0 < category_id <= 2147483647):
             raise ValueError
         with connect() as conn:
             product = conn.execute("""INSERT INTO products
@@ -367,6 +367,177 @@ def review_purchase(purchase_id):
 @app.errorhandler(413)
 def too_large(error):
     return render_template("error.html", title="Upload too large", message="Upload up to 3 photos, no larger than 1 MB each."), 413
+
+
+@app.get("/my-listings")
+@auth.login_required
+def my_listings():
+    user = auth.current_student()
+
+    with connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT p.product_id, p.product_name,
+                   p.description, p.price,
+                   p.item_condition, p.status,
+                   c.category_name
+            FROM products p
+            JOIN categories c
+                ON c.category_id = p.category_id
+            WHERE p.seller_id = ?
+            ORDER BY p.product_id DESC
+            """,
+            (user["student_id"],)
+        ).fetchall()
+
+    return render_template(
+        "my_listings.html",
+        title="My Listings",
+        rows=rows,
+        notice=request.args.get("notice", "")
+    )
+
+@app.get("/listings/<int:product_id>/edit")
+@auth.login_required
+def edit_listing(product_id):
+    user = auth.current_student()
+
+    with connect() as conn:
+        product = conn.execute(
+            """
+            SELECT *
+            FROM products
+            WHERE product_id = ?
+              AND seller_id = ?
+              AND status = 'Available'
+            """,
+            (product_id, user["student_id"])
+        ).fetchone()
+
+        categories = conn.execute(
+            """
+            SELECT category_id, category_name
+            FROM categories
+            WHERE is_active = TRUE
+            ORDER BY category_name
+            """
+        ).fetchall()
+
+    if product is None:
+        return render_template(
+            "error.html",
+            title="Listing not found",
+            message="You cannot edit this listing."
+        ), 404
+
+    return render_template(
+        "edit_listing.html",
+        title="Edit Listing",
+        product=product,
+        categories=categories,
+        conditions=CONDITIONS
+    )
+
+
+@app.post("/listings/<int:product_id>/edit")
+@auth.login_required
+def update_listing(product_id):
+    user = auth.current_student()
+    form = request.form
+
+    try:
+        name = form.get("product_name", "").strip()
+        description = form.get("description", "").strip()
+        category_id = int(form["category_id"])
+        price = Decimal(form["price"])
+
+        if not price.is_finite():
+            raise ValueError
+
+        price = price.quantize(Decimal("0.01"))
+        condition = form.get("item_condition", "")
+
+        if (
+            not name
+            or len(name) > 120
+            or not description
+            or not 0 < price <= Decimal("99999999.99")
+            or condition not in CONDITIONS
+            or not 0 < category_id <= 2147483647
+        ):
+            raise ValueError
+
+        with connect() as conn:
+            result = conn.execute(
+                """
+                UPDATE products
+                SET product_name = ?,
+                    description = ?,
+                    category_id = ?,
+                    price = ?,
+                    item_condition = ?
+                WHERE product_id = ?
+                  AND seller_id = ?
+                  AND status = 'Available'
+                """,
+                (
+                    name, description, category_id,
+                    price, condition, product_id,
+                    user["student_id"]
+                )
+            )
+
+            if result.rowcount == 0:
+                return render_template(
+                    "error.html",
+                    title="Not found",
+                    message="You cannot edit this listing."
+                ), 404
+
+    except (
+        KeyError, ValueError, InvalidOperation,
+        psycopg2.IntegrityError
+    ):
+        return render_template(
+            "error.html",
+            title="Invalid listing",
+            message="Please check your item information."
+        ), 400
+
+    return redirect(
+        url_for("my_listings", notice="Listing updated"),
+        code=303
+    )
+
+
+@app.post("/listings/<int:product_id>/delete")
+@auth.login_required
+def delete_listing(product_id):
+    user = auth.current_student()
+
+    with connect() as conn:
+        result = conn.execute(
+            """
+            UPDATE products
+            SET status = 'Removed'
+            WHERE product_id = ?
+              AND seller_id = ?
+              AND status = 'Available'
+            """,
+            (product_id, user["student_id"])
+        )
+
+        if result.rowcount == 0:
+            return render_template(
+                "error.html",
+                title="Listing not found",
+                message="You cannot remove this listing."
+            ), 404
+
+    return redirect(
+        url_for("my_listings", notice="Listing removed"),
+        code=303
+    )
 
 
 @app.post("/purchase")

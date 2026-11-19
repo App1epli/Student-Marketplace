@@ -1,7 +1,10 @@
-<section class="panel form-panel" id="sell"><h2>List an item</h2>
+{% if current_user %}
+<section class="panel form-panel" id="sell">
 <p class="form-intro">Add a few details so other students can find it.</p>
 <form method="post" action="/listing" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div class="form-grid">
-<div class="wide">{% if current_user %}<p class="seller-identity">Selling as <strong>{{ current_user.full_name }}</strong></p>{% else %}<p class="seller-identity"><a href="{{ url_for('auth.login', next='/#sell') }}">Log in</a> to publish your listing.</p>{% endif %}</div>
+    <div class="wide">
+        <p>Seller: {{ current_user.full_name if current_user else 'Please log in' }}</p>
+    </div>
 <div class="wide"><label for="category">Category</label><select id="category" name="category_id" required><option value="">Select a category</option>{% for c in categories %}<option value="{{ c.category_id }}">{{ c.category_name }}</option>{% endfor %}</select></div>
 <div class="wide"><label for="name">Item name</label><input id="name" name="product_name" maxlength="120" placeholder="For example, programming textbook" required></div>
 <div class="wide"><label for="description">Description</label><textarea id="description" name="description" placeholder="Condition, included accessories, and other details" required></textarea></div>
@@ -12,3 +15,10 @@
 <p class="safe-note">Set a fair price and describe the item's condition. Your listing will appear in the catalog.</p></form></section>
 
 <script src="/static/listing.js" defer></script>
+{% else %}
+<section class="panel form-panel" id="sell">
+    <h2>List an item</h2>
+    <p>Please log in to publish a listing.</p>
+    <a class="button" href="{{ url_for('auth.login') }}">Log in</a>
+</section>
+{% endif %}
