@@ -68,3 +68,76 @@ a.button,button{display:inline-flex;align-items:center;justify-content:center;ga
 .danger-button:hover {
     background: #922b21;
 }
+
+.seller-fee-preview {
+    margin-top: 12px;
+    padding: 16px;
+    border: 1px solid #d0d5dd;
+    border-radius: 12px;
+    background: #f8fafc;
+}
+
+.seller-fee-preview h3 {
+    margin-top: 0;
+    margin-bottom: 12px;
+}
+
+.seller-fee-preview p {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+#commission-amount {
+    color: #c0392b;
+}
+
+#seller-earnings {
+    color: #16803c;
+    font-weight: 700;
+}
+
+
+
+/* Hot Offers */
+
+.hot-offers {
+    margin-bottom: 24px;
+}
+
+.hot-offers h2 {
+    margin-bottom: 12px;
+}
+
+.hot-badge {
+    display: inline-block;
+    background: #fff0d6;
+    color: #9a4800;
+    border: 1px solid #f2c078;
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.promotion-plan {
+    display: block;
+    padding: 12px;
+    margin: 10px 0;
+    border: 1px solid #d0d5dd;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+.item-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 20px;
+}
+
+.share-button {
+    cursor: pointer;
+}

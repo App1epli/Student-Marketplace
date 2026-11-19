@@ -1,0 +1,55 @@
+
+{% extends "base.html" %}
+
+{% block content %}
+
+<section class="panel form-panel">
+
+    <h2>Promote Your Listing</h2>
+
+    <p>
+        Product: <strong>{{ product.product_name }}</strong>
+    </p>
+
+    <p>
+        Choose a plan to add your item to Hot Offers.
+    </p>
+
+    <form method="post"
+          action="{{ url_for('confirm_promotion',
+                    product_id=product.product_id) }}">
+
+        <input type="hidden"
+               name="csrf_token"
+               value="{{ csrf_token() }}">
+
+        {% for days, price in plans.items() %}
+
+        <label class="promotion-plan">
+            <input type="radio"
+                   name="duration_days"
+                   value="{{ days }}"
+                   required>
+
+            {{ days }} day(s) — {{ price|money }}
+        </label>
+
+        {% endfor %}
+
+        <p class="subtle">
+            Demo payment only. No real money is charged.
+        </p>
+
+        <button type="submit">
+            Confirm Demo Promotion
+        </button>
+
+    </form>
+
+    <a href="{{ url_for('my_listings') }}">
+        Cancel
+    </a>
+
+</section>
+
+{% endblock %}

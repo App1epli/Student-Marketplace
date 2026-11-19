@@ -1,11 +1,253 @@
+
 {% extends 'base.html' %}
 {% from 'stars.html' import product_stars, sale_controls with context %}
+
 {% block content %}
-<a class="back-link" href="/">← Back to marketplace</a>
+
+<a class="back-link" href="/">
+    ← Back to marketplace
+</a>
+
 {{ product_stars(product.product_id, product_rating[0], product_rating[1], my_stars) }}
+
 {{ sale_controls(product.product_id, product.seller_id, product.status) }}
-<div class="item-layout"><section class="panel item-gallery"><div class="eyebrow">THE CAMPUS COLLECTION</div>
-{% if photos %}{% for photo in photos %}<img src="{{ url_for('product_photo', photo_id=photo.photo_id) }}" alt="{{ product.product_name }} — photo {{ loop.index }}" {% if not loop.first %}loading="lazy"{% endif %}>{% endfor %}{% else %}<div class="gallery-placeholder">◇<span>No photos added yet</span></div>{% endif %}</section>
-<section class="panel item-info"><div class="tags"><span class="tag">{{ product.category_name }}</span><span class="badge">{{ product.status }}</span></div><h1>{{ product.product_name }}</h1><p class="price">{{ product.price|money }}</p><p class="item-description">{{ product.description }}</p><p class="subtle">Condition: {{ product.item_condition }}</p><hr><div class="eyebrow">MEET YOUR SELLER</div><h2>{{ product.seller }}</h2><p class="seller-rating">{% if rating[0] %}★ {{ rating[0] }} / 5 <span class="muted">· {{ rating[1] }} verified buyer reviews</span>{% else %}☆ New seller · no reviews yet{% endif %}</p>{% if product.status == 'Available' %}<a class="button checkout-link" href="{{ url_for('checkout', product_id=product.product_id) }}">Buy this item →</a>{% endif %}<p class="hint">Demo payments · No real charges</p></section></div>
-<section class="panel seller-reviews"><div class="panel-heading"><h2>Seller reviews</h2><span class="tag">Verified purchases</span></div>{% for review in reviews %}<article class="review-entry"><span class="seller-rating" aria-label="{{ review.stars }} out of 5 stars">{{ '★' * review.stars }}{{ '☆' * (5-review.stars) }}</span><strong>{{ review.buyer }}</strong><p>{{ review.comment or 'Buyer left a star rating.' }}</p></article>{% else %}<p class="subtle">No reviews yet. Buyers can rate their seller from Purchase history after a purchase.</p>{% endfor %}</section>
+
+<div class="item-layout">
+
+    <section class="panel item-gallery">
+
+        <div class="eyebrow">
+            THE CAMPUS COLLECTION
+        </div>
+
+        {% if photos %}
+
+            {% for photo in photos %}
+                <img
+                    src="{{ url_for('product_photo', photo_id=photo.photo_id) }}"
+                    alt="{{ product.product_name }} — photo {{ loop.index }}"
+                    {% if not loop.first %}loading="lazy"{% endif %}
+                >
+            {% endfor %}
+
+        {% else %}
+
+            <div class="gallery-placeholder">
+                ◇
+                <span>No photos added yet</span>
+            </div>
+
+        {% endif %}
+
+    </section>
+
+    <section class="panel item-info">
+
+        <div class="tags">
+            <span class="tag">
+                {{ product.category_name }}
+            </span>
+
+            <span class="badge">
+                {{ product.status }}
+            </span>
+        </div>
+
+        <h1>{{ product.product_name }}</h1>
+
+        <p class="price">
+            {{ product.price|money }}
+        </p>
+
+        <p class="item-description">
+            {{ product.description }}
+        </p>
+
+        <p class="subtle">
+            Condition: {{ product.item_condition }}
+        </p>
+
+        <hr>
+
+        <div class="eyebrow">
+            MEET YOUR SELLER
+        </div>
+
+        <h2>{{ product.seller }}</h2>
+
+        <p class="seller-rating">
+
+            {% if rating[0] %}
+
+                ★ {{ rating[0] }} / 5
+
+                <span class="muted">
+                    · {{ rating[1] }} verified buyer reviews
+                </span>
+
+            {% else %}
+
+                ☆ New seller · no reviews yet
+
+            {% endif %}
+
+        </p>
+
+        <!-- BUY AND SHARE BUTTONS -->
+
+        <div class="item-actions">
+
+            {% if product.status == 'Available' %}
+
+                <a
+                    class="button checkout-link"
+                    href="{{ url_for('checkout', product_id=product.product_id) }}"
+                >
+                    Buy this item →
+                </a>
+
+            {% endif %}
+
+            <button
+                type="button"
+                class="button secondary share-button"
+                id="share-listing"
+                data-title="{{ product.product_name }}"
+            >
+                Share ↗
+            </button>
+
+        </div>
+
+        <p
+            id="share-feedback"
+            class="subtle"
+            role="status"
+            aria-live="polite"
+        ></p>
+
+        <p class="hint">
+            Demo payments · No real charges
+        </p>
+
+    </section>
+
+</div>
+
+<!-- SELLER REVIEWS -->
+
+<section class="panel seller-reviews">
+
+    <div class="panel-heading">
+
+        <h2>Seller reviews</h2>
+
+        <span class="tag">
+            Verified purchases
+        </span>
+
+    </div>
+
+    {% for review in reviews %}
+
+        <article class="review-entry">
+
+            <span
+                class="seller-rating"
+                aria-label="{{ review.stars }} out of 5 stars"
+            >
+                {{ '★' * review.stars }}{{ '☆' * (5-review.stars) }}
+            </span>
+
+            <strong>
+                {{ review.buyer }}
+            </strong>
+
+            <p>
+                {{ review.comment or 'Buyer left a star rating.' }}
+            </p>
+
+        </article>
+
+    {% else %}
+
+        <p class="subtle">
+            No reviews yet. Buyers can rate their seller
+            from Purchase history after a purchase.
+        </p>
+
+    {% endfor %}
+
+</section>
+
+<!-- SHARE FUNCTIONALITY -->
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    const shareButton = document.getElementById("share-listing");
+    const shareFeedback = document.getElementById("share-feedback");
+
+    if (!shareButton) {
+        return;
+    }
+
+    shareButton.addEventListener("click", async function () {
+
+        const title = shareButton.dataset.title;
+        const url = window.location.href;
+
+        try {
+
+            if (navigator.share) {
+
+                await navigator.share({
+                    title: title,
+                    text: "Check out this item on Student Marketplace!",
+                    url: url
+                });
+
+            } else if (navigator.clipboard && navigator.clipboard.writeText) {
+
+                await navigator.clipboard.writeText(url);
+
+                shareFeedback.textContent = "Link copied!";
+
+            } else {
+
+                const input = document.createElement("textarea");
+
+                input.value = url;
+                input.style.position = "fixed";
+                input.style.opacity = "0";
+
+                document.body.appendChild(input);
+
+                input.select();
+
+                const copied = document.execCommand("copy");
+
+                document.body.removeChild(input);
+
+                shareFeedback.textContent = copied
+                    ? "Link copied!"
+                    : "Could not copy the link.";
+            }
+
+        } catch (error) {
+
+            if (error.name !== "AbortError") {
+
+                shareFeedback.textContent =
+                    "Could not share this link.";
+
+            }
+
+        }
+
+    });
+
+});
+</script>
+
 {% endblock %}

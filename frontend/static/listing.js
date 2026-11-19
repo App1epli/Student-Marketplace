@@ -25,3 +25,48 @@
     });
   });
 })();
+
+
+(() => {
+  const priceInput = document.getElementById("price");
+  const commissionElement =
+      document.getElementById("commission-amount");
+  const earningsElement =
+      document.getElementById("seller-earnings");
+
+  if (!priceInput || !commissionElement || !earningsElement) {
+      return;
+  }
+
+  const commissionRate = 0.03;
+
+  function updateEarnings() {
+      const price = Number(priceInput.value);
+
+      if (!Number.isFinite(price) || price <= 0) {
+          commissionElement.textContent = "0 ₸";
+          earningsElement.textContent = "0 ₸";
+          return;
+      }
+
+      const commission =
+          Math.round(price * commissionRate * 100) / 100;
+
+      const earnings =
+          Math.round((price - commission) * 100) / 100;
+
+      const format = value =>
+          value.toLocaleString("en-US", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2
+          }) + " ₸";
+
+      commissionElement.textContent = "- " + format(commission);
+      earningsElement.textContent = format(earnings);
+  }
+
+  priceInput.addEventListener("input", updateEarnings);
+
+  updateEarnings();
+})();
+

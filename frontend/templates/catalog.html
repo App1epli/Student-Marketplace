@@ -1,6 +1,48 @@
 {% extends "base.html" %}
 {% from 'stars.html' import product_stars, sale_controls with context %}
 {% block content %}
+
+
+{% if hot_offers %}
+
+<section class="panel hot-offers">
+
+    <h2>🔥 Hot Offers</h2>
+    <p class="subtle">
+        Promoted student listings
+    </p>
+
+    <div class="catalog">
+
+        {% for item in hot_offers %}
+
+        <article class="listing">
+
+            <span class="hot-badge">
+                Sponsored · Hot Offer
+            </span>
+
+            <h3>
+                <a href="{{ url_for('item_detail',
+                         product_id=item.product_id) }}">
+                    {{ item.product_name }}
+                </a>
+            </h3>
+
+            <div class="price">
+                {{ item.price|money }}
+            </div>
+
+        </article>
+
+        {% endfor %}
+
+    </div>
+
+</section>
+
+{% endif %}
+
 <section class="hero"><div><div class="eyebrow">THE CAMPUS COLLECTION</div><h1>A little less new.<br>A little more you.</h1><p>Discover everyday essentials, share your good finds, and make campus life a little lighter.</p></div>
 <div class="stats"><span class="stat"><b>{{ counts.get('Available', 0) }}</b> available</span><span class="stat"><b>{{ counts.get('Sold', 0) }}</b> sold</span></div></section>
 <div class="workspace"><section class="panel">
