@@ -1,7 +1,25 @@
 """Classroom payment simulator. A saved test card is required; no money moves."""
 from uuid import UUID
+from decimal import Decimal, ROUND_HALF_UP
 
 PAYMENT_METHODS = ("Demo Card",)
+
+
+COMMISSION_RATE = Decimal("0.03")
+
+
+def calculate_seller_amounts(price):
+    price = Decimal(str(price))
+
+    fee = (price * COMMISSION_RATE).quantize(
+        Decimal("0.01"),
+        rounding=ROUND_HALF_UP
+    )
+
+    seller_payout = price - fee
+
+    return fee, seller_payout
+
 
 
 class CheckoutError(ValueError):
@@ -72,9 +90,38 @@ def complete_purchase(conn, *, product_id, buyer_id, method, reference, card_id=
     if outcome == "declined":
         raise CheckoutError("Demo payment declined. No money was charged and the item is still available. Choose Approved to try again.", 402)
 
-    conn.execute("""INSERT INTO purchases
-        (buyer_id, product_id, agreed_price, payment_method, payment_status, payment_reference, card_last4)
-        VALUES (?, ?, ?, ?, ?, ?, ?)""", (buyer_id, product_id, product["price"], method, "Demo paid", reference, card["last4"]))
+    fee, payout = calculate_seller_amounts(product["price"])
+
+    conn.execute(
+        """
+        INSERT INTO purchases (
+            buyer_id,
+            product_id,
+            agreed_price,
+            payment_method,
+            payment_status,
+            payment_reference,
+            card_last4,
+            platform_fee,
+            seller_payout,
+            commission_rate
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            buyer_id,
+            product_id,
+            product["price"],
+            method,
+            "Demo paid",
+            reference,
+            card["last4"],
+            fee,
+            payout,
+            COMMISSION_RATE
+        )
+    )
+
     changed = conn.execute("UPDATE products SET status='Sold' WHERE product_id=? AND status='Available'", (product_id,)).rowcount
     if changed != 1:
         raise CheckoutError("This listing is no longer available.", 409)

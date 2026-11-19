@@ -38,6 +38,12 @@
       <div class="listing-actions">
 
         <a class="button"
+            href="{{ url_for('promote_listing',
+              product_id=item.product_id) }}">
+            Promote
+        </a>
+
+        <a class="button"
            href="{{ url_for('edit_listing', product_id=item.product_id) }}">
           Edit
         </a>

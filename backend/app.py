@@ -34,6 +34,12 @@ app.register_blueprint(messaging.bp)
 CONDITIONS = ("New", "Like New", "Good", "Fair")
 STATUSES = ("Available", "Sold", "Removed", "All")
 
+PROMOTION_PLANS = {
+    1: Decimal("200.00"),
+    3: Decimal("500.00"),
+    7: Decimal("900.00")
+}
+
 
 def wallet_hash():
     """Opaque guest wallet cookie; no account, signing key or client storage needed."""
@@ -124,7 +130,25 @@ def catalog():
             JOIN students s ON s.student_id=p.seller_id""" + where +
             " ORDER BY CASE p.status WHEN 'Available' THEN 0 ELSE 1 END, p.price, p.product_id", [user["student_id"] if user else None, *args]).fetchall()
         counts = {row["status"]: row["n"] for row in conn.execute("SELECT status, COUNT(*) AS n FROM products GROUP BY status")}
-    return render_template("catalog.html", title="Marketplace catalog", rows=rows,
+
+        hot_offers = conn.execute(
+            """
+            SELECT DISTINCT
+                p.product_id,
+                p.product_name,
+                p.price
+            FROM products p
+            JOIN listing_promotions lp
+                ON lp.product_id = p.product_id
+            WHERE p.status = 'Available'
+              AND lp.starts_at <= CURRENT_TIMESTAMP
+              AND lp.expires_at > CURRENT_TIMESTAMP
+            ORDER BY p.product_id DESC
+            LIMIT 6
+            """
+        ).fetchall()
+
+    return render_template("catalog.html", title="Marketplace catalog", rows=rows,hot_offers=hot_offers,
                            categories=categories, people=people, counts=counts,
                            search=search, status=status, category=category,
                            conditions=CONDITIONS, statuses=STATUSES,
@@ -367,6 +391,110 @@ def review_purchase(purchase_id):
 @app.errorhandler(413)
 def too_large(error):
     return render_template("error.html", title="Upload too large", message="Upload up to 3 photos, no larger than 1 MB each."), 413
+
+
+@app.get("/listings/<int:product_id>/promote")
+@auth.login_required
+def promote_listing(product_id):
+    user = auth.current_student()
+
+    with connect() as conn:
+        product = conn.execute(
+            """
+            SELECT product_id, product_name, price
+            FROM products
+            WHERE product_id = ?
+              AND seller_id = ?
+              AND status = 'Available'
+            """,
+            (product_id, user["student_id"])
+        ).fetchone()
+
+    if product is None:
+        return render_template(
+            "error.html",
+            title="Not found",
+            message="This listing cannot be promoted."
+        ), 404
+
+    return render_template(
+        "promote_listing.html",
+        title="Promote Listing",
+        product=product,
+        plans=PROMOTION_PLANS
+    )
+
+
+@app.post("/listings/<int:product_id>/promote")
+@auth.login_required
+def confirm_promotion(product_id):
+    user = auth.current_student()
+
+    try:
+        days = int(request.form["duration_days"])
+    except (KeyError, ValueError):
+        return "Invalid promotion plan", 400
+
+    if days not in PROMOTION_PLANS:
+        return "Invalid promotion plan", 400
+
+    with connect() as conn:
+        product = conn.execute(
+            """
+            SELECT product_id
+            FROM products
+            WHERE product_id = ?
+              AND seller_id = ?
+              AND status = 'Available'
+            FOR UPDATE
+            """,
+            (product_id, user["student_id"])
+        ).fetchone()
+
+        if product is None:
+            return "Listing not available", 404
+
+        active = conn.execute(
+            """
+            SELECT 1
+            FROM listing_promotions
+            WHERE product_id = ?
+              AND expires_at > CURRENT_TIMESTAMP
+            LIMIT 1
+            """,
+            (product_id,)
+        ).fetchone()
+
+        if active:
+            return "This listing is already promoted", 409
+
+        conn.execute(
+            """
+            INSERT INTO listing_promotions (
+                product_id,
+                student_id,
+                duration_days,
+                demo_price,
+                expires_at
+            )
+            VALUES (
+                ?, ?, ?, ?,
+                CURRENT_TIMESTAMP + (? * INTERVAL '1 day')
+            )
+            """,
+            (
+                product_id,
+                user["student_id"],
+                days,
+                PROMOTION_PLANS[days],
+                days
+            )
+        )
+
+    return redirect(
+        url_for("my_listings", notice="Promotion activated"),
+        code=303
+    )
 
 
 @app.get("/my-listings")
