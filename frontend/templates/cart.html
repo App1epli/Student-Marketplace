@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <div class="panel-heading">
+    <div>
+      <div class="eyebrow">Your shopping cart</div>
+      <h2>Cart</h2>
+    </div>
+    <span class="tag">{{ items|length }} item{{ '' if items|length == 1 else 's' }}</span>
+  </div>
+
+  {% if items %}
+  <div class="cart-layout" style="display:grid;grid-template-columns:minmax(0,1.8fr) minmax(280px,1fr);gap:24px;margin-top:16px;">
+    <div class="cart-items" style="display:flex;flex-direction:column;gap:12px;">
+      {% for item in items %}
+      <div class="cart-item-card" style="display:flex;gap:16px;padding:16px;background:#faf8fc;border:1px solid var(--line);border-radius:10px;align-items:center;">
+        <a class="cart-item-image" href="{{ url_for('item_detail', product_id=item.product_id) }}" style="width:80px;height:80px;flex-shrink:0;border-radius:8px;overflow:hidden;background:#f0e8f8;display:grid;place-items:center;font-size:28px;color:#9b84b1;">
+          {% if item.photo_id %}
+          <img src="{{ url_for('product_photo', photo_id=item.photo_id) }}" alt="{{ item.product_name }}" style="width:100%;height:100%;object-fit:cover;">
+          {% else %}
+          <span>{{ {'Electronics':'⌘', 'Books and Study':'▤', 'Dorm Essentials':'⌂', 'Clothing and Bags':'♧'}.get(item.category_name, '◇') }}</span>
+          {% endif %}
+        </a>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;gap:6px;margin-bottom:4px;flex-wrap:wrap;">
+            <span class="tag">{{ item.category_name }}</span>
+            <span class="tag">{{ item.item_condition }}</span>
+            {% if item.status != 'Available' %}
+            <span class="badge sold">{{ item.status }}</span>
+            {% endif %}
+          </div>
+          <h3 style="margin:0 0 4px;font-size:15px;">
+            <a href="{{ url_for('item_detail', product_id=item.product_id) }}">{{ item.product_name }}</a>
+          </h3>
+          <div class="subtle" style="font-size:12px;">Seller: {{ item.seller }}</div>
+        </div>
+        <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+          <div class="price" style="font-size:17px;font-weight:700;color:var(--ink);">{{ item.price|money }}</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            {% if item.status == 'Available' %}
+            <a class="button small" href="{{ url_for('checkout', product_id=item.product_id) }}">Buy now →</a>
+            {% else %}
+            <span class="subtle" style="font-size:11px;">No longer available</span>
+            {% endif %}
+            <form method="post" action="{{ url_for('cart_remove', product_id=item.product_id) }}" style="margin:0;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="button secondary small" style="color:#b23b3b;padding:5px 9px;" title="Remove from cart">✕</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="cart-summary-panel" style="background:#faf8fc;border:1px solid var(--line);border-radius:10px;padding:20px;align-self:start;">
+      <h3 style="margin:0 0 16px;font-size:16px;">Order summary</h3>
+      <div style="display:flex;justify-content:space-between;margin-bottom:10px;font-size:13px;color:var(--muted);">
+        <span>Available items</span>
+        <span>{{ items|selectattr('status', 'equalto', 'Available')|list|length }}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:16px;font-size:15px;font-weight:700;padding-top:12px;border-top:1px solid var(--line);">
+        <span>Total</span>
+        <span style="color:#8063ad;">{{ total_price|money }}</span>
+      </div>
+      <p class="safe-note" style="margin-bottom:16px;">Items in your student cart can be purchased with campus demo checkout.</p>
+      {% set first_available = items|selectattr('status', 'equalto', 'Available')|first %}
+      {% if first_available %}
+      <a class="button" style="width:100%;text-align:center;display:block;" href="{{ url_for('checkout', product_id=first_available.product_id) }}">Proceed to checkout →</a>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  <div class="empty">
+    <div class="empty-icon">🛒</div>
+    <strong>Your cart is empty</strong><br>
+    <span class="muted">Add textbooks, electronics, and dorm essentials from the marketplace.</span>
+    <div style="margin-top:16px;">
+      <a class="button" href="/">Explore catalog</a>
+    </div>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

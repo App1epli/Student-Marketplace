@@ -1,12 +1,47 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="panel"><div class="panel-heading"><div><div class="eyebrow">Your marketplace</div><h2>Purchase history</h2></div><span class="tag">{{ rows|length }} purchase{{ '' if rows|length == 1 else 's' }}</span></div>
-{% if rows %}
-<p class="subtle">Demo payments do not move money. Cash orders remain pending payment.</p>
-<div style="overflow-x:auto"><table class="sales-table"><thead><tr><th>Item</th><th>Buyer</th><th>Seller</th><th>Price</th><th>Method</th><th>Payment status</th><th>Date</th><th>Receipt</th><th>Seller rating</th></tr></thead><tbody>
-{% for r in rows %}<tr><td>{{ r.product_name }}</td><td>{{ r.buyer }}</td><td>{{ r.seller }}</td><td class="nowrap">{{ r.agreed_price|money }}</td><td>{{ 'Bank transfer (demo)' if r.payment_method == 'Bank Transfer' and r.payment_status == 'Demo paid' else r.payment_method }}</td><td><span class="badge {{ 'sold' if r.payment_status != 'Demo paid' else '' }}">{{ r.payment_status }}</span></td><td>{{ r.purchase_date }}</td><td>{% if r.payment_reference %}<a href="{{ url_for('receipt', reference=r.payment_reference) }}">View receipt</a>{% else %}<span class="muted">—</span>{% endif %}</td><td>{% if current_user and current_user.student_id == r.buyer_id %}<form class="review-form" method="post" action="{{ url_for('review_purchase', purchase_id=r.purchase_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label for="stars-{{ r.purchase_id }}">Rate your seller</label><select id="stars-{{ r.purchase_id }}" name="stars" required><option value="">Choose stars</option>{% for n in range(5,0,-1) %}<option value="{{ n }}" {% if r.review_stars == n %}selected{% endif %}>{{ '★' * n }} ({{ n }})</option>{% endfor %}</select><input name="comment" maxlength="500" placeholder="Your experience (optional)" aria-label="Review comment"><button class="small" type="submit">{{ 'Update rating' if r.review_stars else 'Submit rating' }}</button></form>{% elif r.review_stars %}<span class="seller-rating">{{ '★' * r.review_stars }}</span>{% else %}<span class="muted">Buyer review pending</span>{% endif %}</td></tr>{% endfor %}
-</tbody></table></div>
-{% else %}
-<div class="empty"><div class="empty-icon">↗</div><strong>No purchases yet</strong><br><span class="muted">Completed purchases will appear here.</span></div>
-{% endif %}</section>
+<section class="panel">
+  <div class="panel-heading">
+    <div>
+      <div class="eyebrow">Your marketplace</div>
+      <h2>Purchase history</h2>
+    </div>
+    <span class="tag">{{ rows|length }} purchase{{ '' if rows|length == 1 else 's' }}{% if total_count and rows|length != total_count %} (filtered from {{ total_count }}){% endif %}</span>
+  </div>
+
+  <form class="filters" method="get" action="/sales" style="margin-bottom:18px;">
+    <input name="q" placeholder="Search by item, buyer, seller (min 2 chars)..." value="{{ search }}" aria-label="Search purchases">
+    <select name="method" aria-label="Payment method">
+      <option value="">All payment methods</option>
+      {% for m in payment_methods %}
+      <option value="{{ m }}" {% if method == m %}selected{% endif %}>{{ m }}</option>
+      {% endfor %}
+    </select>
+    <select name="status" aria-label="Payment status">
+      <option value="">All payment statuses</option>
+      {% for s in payment_statuses %}
+      <option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+    <div style="display:flex;gap:8px;">
+      <button type="submit">Search</button>
+      {% if search or method or status_filter %}
+      <a class="button secondary small" href="/sales" style="display:inline-flex;align-items:center;">Reset</a>
+      {% endif %}
+    </div>
+  </form>
+
+  {% if search and search|length < 2 %}
+  <p class="subtle" style="color:#8063ad;margin-bottom:12px;">ℹ️ Type at least 2 characters to search across purchases.</p>
+  {% endif %}
+
+  {% if rows %}
+  <p class="subtle">Demo payments do not move money. Cash orders remain pending payment.</p>
+  <div style="overflow-x:auto"><table class="sales-table"><thead><tr><th>Item</th><th>Buyer</th><th>Seller</th><th>Price</th><th>Method</th><th>Payment status</th><th>Date</th><th>Receipt</th><th>Seller rating</th></tr></thead><tbody>
+  {% for r in rows %}<tr><td><a href="{{ url_for('item_detail', product_id=r.product_id) }}" style="font-weight:600;color:var(--ink);">{{ r.product_name }}</a></td><td>{{ r.buyer }}</td><td>{{ r.seller }}</td><td class="nowrap">{{ r.agreed_price|money }}</td><td>{{ 'Bank transfer (demo)' if r.payment_method == 'Bank Transfer' and r.payment_status == 'Demo paid' else r.payment_method }}</td><td><span class="badge {{ 'sold' if r.payment_status != 'Demo paid' else '' }}">{{ r.payment_status }}</span></td><td>{{ r.purchase_date }}</td><td>{% if r.payment_reference %}<a href="{{ url_for('receipt', reference=r.payment_reference) }}">View receipt</a>{% else %}<span class="muted">—</span>{% endif %}</td><td>{% if current_user and current_user.student_id == r.buyer_id %}<form class="review-form" method="post" action="{{ url_for('review_purchase', purchase_id=r.purchase_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label for="stars-{{ r.purchase_id }}">Rate your seller</label><select id="stars-{{ r.purchase_id }}" name="stars" required><option value="">Choose stars</option>{% for n in range(5,0,-1) %}<option value="{{ n }}" {% if r.review_stars == n %}selected{% endif %}>{{ '★' * n }} ({{ n }})</option>{% endfor %}</select><input name="comment" maxlength="500" placeholder="Your experience (optional)" aria-label="Review comment"><button class="small" type="submit">{{ 'Update rating' if r.review_stars else 'Submit rating' }}</button></form>{% elif r.review_stars %}<span class="seller-rating">{{ '★' * r.review_stars }}</span>{% else %}<span class="muted">Buyer review pending</span>{% endif %}</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% else %}
+  <div class="empty"><div class="empty-icon">↗</div><strong>No purchases found</strong><br><span class="muted">{% if search or method or status_filter %}Try adjusting your search terms or filters.{% else %}Completed purchases will appear here.{% endif %}</span></div>
+  {% endif %}
+</section>
 {% endblock %}

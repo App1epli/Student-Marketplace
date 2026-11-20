@@ -62,7 +62,15 @@
   {{ product_stars(r.product_id, r.product_rating, r.product_rating_count, r.my_stars, 'catalog') }}
   {{ sale_controls(r.product_id, r.seller_id, r.status) }}
   {% if r.status == 'Available' %}
-  <a class="button checkout-link" href="{{ url_for('checkout', product_id=r.product_id) }}">Buy this item <span aria-hidden="true">→</span></a>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <a class="button checkout-link" style="flex:1;" href="{{ url_for('checkout', product_id=r.product_id) }}">Buy this item <span aria-hidden="true">→</span></a>
+    <form method="post" action="{{ url_for('cart_toggle', product_id=r.product_id) }}" style="margin:0;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="button secondary" style="padding:10px 14px;min-width:44px;{{ 'background:#78569f;color:#fff;' if r.product_id in cart_product_ids else '' }}" title="{{ 'Remove from cart' if r.product_id in cart_product_ids else 'Add to cart' }}">
+        {{ '✓ In cart' if r.product_id in cart_product_ids else '🛒' }}
+      </button>
+    </form>
+  </div>
   <span class="muted">Demo checkout · no real charges</span>
   {% if current_user and r.seller_id != current_user.student_id %}
   <details class="buy"><summary>Contact seller</summary>

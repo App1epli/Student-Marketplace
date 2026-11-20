@@ -139,6 +139,8 @@ def login():
                                error="Invalid email or password.", notice=""), 401
     session.clear()
     session["student_id"] = student
+    from backend.cart import sync_guest_cart
+    sync_guest_cart(student)
     target = request.args.get("next", "")
     if not target.startswith("/") or target.startswith("//"):
         target = url_for("catalog")
