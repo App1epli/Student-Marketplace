@@ -13,7 +13,7 @@ from uuid import uuid4
 from flask import Flask, Response, g, redirect, render_template, request, send_from_directory, url_for
 from flask_wtf.csrf import CSRFProtect
 
-from backend import auth, messaging
+from backend import auth, cart, messaging
 from backend.database import connect, initialize_database, migrate_database, psycopg2
 from backend.payments import CheckoutError, complete_purchase, demo_buyer_id
 from backend.cards import add_card, get_card
@@ -33,6 +33,12 @@ app.register_blueprint(auth.bp)
 app.register_blueprint(messaging.bp)
 CONDITIONS = ("New", "Like New", "Good", "Fair")
 STATUSES = ("Available", "Sold", "Removed", "All")
+
+
+@app.context_processor
+def inject_cart():
+    user = auth.current_student()
+    return {"cart_count": cart.get_cart_count(user["student_id"] if user else None)}
 
 PROMOTION_PLANS = {
     1: Decimal("200.00"),
@@ -152,21 +158,51 @@ def catalog():
                            categories=categories, people=people, counts=counts,
                            search=search, status=status, category=category,
                            conditions=CONDITIONS, statuses=STATUSES,
+                           cart_product_ids=cart.get_cart_product_ids(user["student_id"] if user else None),
                            mine=mine, notice=request.args.get("notice", ""))
 
 
 @app.get("/sales")
 def sales():
+    search = request.args.get("q", "").strip()
+    method = request.args.get("method", "").strip()
+    status_filter = request.args.get("status", "").strip()
+    clauses, args = [], []
+    if search and len(search) >= 2:
+        for word in search.split():
+            term = f"%{word}%"
+            clauses.append(
+                "(LOWER(p.product_name) LIKE LOWER(?)"
+                " OR LOWER(buyer.full_name) LIKE LOWER(?)"
+                " OR LOWER(seller.full_name) LIKE LOWER(?)"
+                " OR LOWER(COALESCE(pu.payment_reference,'')) LIKE LOWER(?))"
+            )
+            args.extend([term, term, term, term])
+    if method:
+        clauses.append("pu.payment_method = ?")
+        args.append(method)
+    if status_filter:
+        clauses.append("pu.payment_status = ?")
+        args.append(status_filter)
+    where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
     with connect() as conn:
+        total_count = conn.execute("SELECT COUNT(*) FROM purchases").fetchone()[0]
         rows = conn.execute("""SELECT pu.purchase_id, pu.purchase_date, pu.agreed_price,
-            pu.payment_method, pu.payment_status, pu.payment_reference, pu.buyer_id,
+            pu.payment_method, pu.payment_status, pu.payment_reference, pu.buyer_id, pu.product_id,
             (SELECT stars FROM seller_reviews WHERE purchase_id=pu.purchase_id) AS review_stars,
             buyer.full_name AS buyer, p.product_name, seller.full_name AS seller
             FROM purchases pu JOIN students buyer ON buyer.student_id = pu.buyer_id
             JOIN products p ON p.product_id = pu.product_id
-            JOIN students seller ON seller.student_id = p.seller_id
-            ORDER BY pu.purchase_date DESC, pu.purchase_id DESC""").fetchall()
-    return render_template("sales.html", title="Purchase history", rows=rows)
+            JOIN students seller ON seller.student_id = p.seller_id""" + where +
+            " ORDER BY pu.purchase_date DESC, pu.purchase_id DESC", args).fetchall()
+        payment_methods = [r[0] for r in conn.execute(
+            "SELECT DISTINCT payment_method FROM purchases ORDER BY payment_method")]
+        payment_statuses = [r[0] for r in conn.execute(
+            "SELECT DISTINCT payment_status FROM purchases ORDER BY payment_status")]
+    return render_template("sales.html", title="Purchase history", rows=rows,
+                           search=search, method=method, status_filter=status_filter,
+                           payment_methods=payment_methods, payment_statuses=payment_statuses,
+                           total_count=total_count)
 
 
 def checkout_page(product_id, *, error="", status=200, form=None):
@@ -323,6 +359,7 @@ def item_detail(product_id):
                                  (product_id, user["student_id"] if user else None)).fetchone()
     return render_template("item.html", title=product["product_name"], product=product, photos=photos, reviews=reviews,
                            rating=rating, product_rating=product_rating, my_stars=my_rating[0] if my_rating else None,
+                           is_in_cart=product_id in cart.get_cart_product_ids(user["student_id"] if user else None),
                            notice=request.args.get("notice", ""))
 
 
@@ -386,6 +423,32 @@ def review_purchase(purchase_id):
     except ValueError:
         return render_template("error.html", title="Invalid review", message="Choose 1–5 stars and keep your review under 500 characters."), 400
     return redirect(url_for("sales", notice="Review saved"), code=303)
+
+
+@app.get("/cart")
+def cart_view():
+    user = auth.current_student()
+    items, total_price = cart.get_cart_details(user["student_id"] if user else None)
+    return render_template("cart.html", title="Cart", items=items, total_price=total_price,
+                           notice=request.args.get("notice", ""))
+
+
+@app.post("/cart/toggle/<int:product_id>")
+def cart_toggle(product_id):
+    user = auth.current_student()
+    student_id = user["student_id"] if user else None
+    if product_id in cart.get_cart_product_ids(student_id):
+        cart.remove_from_cart(product_id, student_id)
+    else:
+        cart.add_to_cart(product_id, student_id)
+    return redirect(request.referrer or url_for("catalog"))
+
+
+@app.post("/cart/remove/<int:product_id>")
+def cart_remove(product_id):
+    user = auth.current_student()
+    cart.remove_from_cart(product_id, user["student_id"] if user else None)
+    return redirect(url_for("cart_view", notice="Item removed from cart"))
 
 
 @app.errorhandler(413)

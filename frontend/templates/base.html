@@ -16,6 +16,10 @@
   <p class="nav-label">WORKSPACE</p>
   <nav class="side-nav">
     <a class="{{ 'active' if request.path == '/' or request.path.startswith('/items') else '' }}" href="/"><span>▦</span> Marketplace</a>
+    <a class="{{ 'active' if request.path == '/cart' else '' }}" href="{{ url_for('cart_view') }}">
+      <span>🛒</span> Cart
+      {% if cart_count and cart_count > 0 %}<span class="badge" style="margin-left:auto;padding:2px 7px;font-size:11px;background:#eee5f8;color:#78569f;font-weight:700;">{{ cart_count }}</span>{% endif %}
+    </a>
     <a class="{{ 'active' if request.path == '/sales' else '' }}" href="/sales"><span>▤</span> Purchases & ratings</a>
     <a class="{{ 'active' if request.path.startswith('/messages') else '' }}" href="{{ url_for('messaging.inbox') }}"><span>◷</span> Messages</a>
     <a href="/#sell"><span>＋</span> Sell an item</a>

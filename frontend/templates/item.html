@@ -106,6 +106,13 @@
                     Buy this item →
                 </a>
 
+                <form method="post" action="{{ url_for('cart_toggle', product_id=product.product_id) }}" style="margin:0;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="button secondary" style="{{ 'background:#78569f;color:#fff;' if is_in_cart else '' }}">
+                        {{ '✓ In cart' if is_in_cart else '🛒 Add to cart' }}
+                    </button>
+                </form>
+
             {% endif %}
 
             <button
