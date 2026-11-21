@@ -217,9 +217,19 @@ def initialize_database() -> None:
                 PRODUCTS,
             )
             conn.execute(
-                "INSERT INTO purchases (buyer_id, product_id, agreed_price, payment_method) VALUES (4, 5, 3800, 'Cash')"
-            )
-        # Add the expanded catalogue to both new and previously initialized databases.
+                """
+                INSERT INTO purchases (
+                    buyer_id,
+                    product_id,
+                    agreed_price,
+                    payment_method,
+                    platform_fee,
+                    seller_payout,
+                    commission_rate
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (4, 5, 3800, "Cash", 0, 3800, 0))                   # Add the expanded catalogue to both new and previously initialized databases.
         for student_number, category_name, name, description, price, condition in EXTRA_PRODUCTS:
             conn.execute("""INSERT INTO products (seller_id, category_id, product_name, description, price, item_condition)
                 SELECT s.student_id, c.category_id, %s, %s, %s, %s
