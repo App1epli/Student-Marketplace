@@ -38,6 +38,10 @@
 
 Сессии Flask подписываются явным `SECRET_KEY` из окружения или постоянным случайным ключом из PostgreSQL. Все изменяющие состояние формы и JSON-запросы защищены CSRF-токеном (Flask-WTF): в HTML-формах скрытое поле `csrf_token`, в fetch-запросах заголовок `X-CSRFToken` из `<meta name="csrf-token">`.
 
+## Архитектура и безопасность
+
+Описание архитектуры Flask/PostgreSQL, защиты от SQL Injection, ограничений базы данных, авторизации и транзакций покупки: [docs/SECURITY_ARCHITECTURE.md](docs/SECURITY_ARCHITECTURE.md).
+
 ## Структура
 
 ```text
