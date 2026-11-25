@@ -5,7 +5,7 @@
 {% if error %}<div class="checkout-error" role="alert" tabindex="-1" id="checkout-error"><strong>Checkout could not be completed</strong><p>{{ error }}</p></div>{% endif %}
 <div class="checkout-layout">
 <section class="panel checkout-panel">
-{% if product.status == 'Available' %}
+{% if product.status == 'Available' and booking_allowed %}
 <form method="post" action="{{ url_for('checkout_submit', product_id=product.product_id) }}" id="checkout-form">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="payment_reference" value="{{ reference }}">
@@ -40,7 +40,7 @@
   </form>
 </dialog>
 {% else %}
-<div class="empty"><h2>This item is no longer available</h2><p>No payment was taken. Another student may have purchased it.</p><a class="button" href="/">Find another item</a></div>
+<div class="empty"><h2>{{ 'This item is booked' if booking else 'This item is no longer available' }}</h2><p>{{ 'Only the signed-in student who booked this item can purchase it until the booking expires.' if booking else 'No payment was taken. Another student may have purchased it.' }}</p><a class="button" href="/">Find another item</a></div>
 {% endif %}
 </section>
 <aside class="panel order-summary" aria-label="Order summary"><div class="eyebrow">Your order</div><div class="item-illustration" aria-hidden="true">SM<span>STUDENT FINDS</span></div><span class="tag">{{ product.category_name }}</span><h2>{{ product.product_name }}</h2><p class="subtle">{{ product.description }}</p><dl class="summary-details"><div><dt>Seller</dt><dd>{{ product.seller }}</dd></div><div><dt>Condition</dt><dd>{{ product.item_condition }}</dd></div><div><dt>Quantity</dt><dd>1 item</dd></div></dl><dl class="summary-totals"><div><dt>Item price</dt><dd>{{ product.price|money }}</dd></div><div><dt>Service fee</dt><dd>{{ 0|money }}</dd></div><div class="summary-total"><dt>Total</dt><dd>{{ product.price|money }}</dd></div></dl><p class="hint">Currency: KZT · No delivery fee is included.</p></aside>

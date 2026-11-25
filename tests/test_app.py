@@ -169,6 +169,114 @@ class PostgreSQLTests(unittest.TestCase):
         with database.connect() as conn:
             return conn.execute("SELECT MAX(product_id) FROM products").fetchone()[0]
 
+    def sign_in_sample(self, student_id, client=None):
+        with (client or self.client).session_transaction() as session:
+            session['student_id'] = student_id
+
+    def test_liked_is_private_persistent_and_idempotent(self):
+        product_id = self.create_listing('Saved find')
+        url = f'/items/{product_id}/like'
+        self.assertEqual(post_form(self.client, url, dict(liked='1')).status_code, 302)
+        self.sign_in_sample(2)
+        self.assertEqual(post_form(self.client, url, dict(liked='1')).status_code, 303)
+        self.assertEqual(post_form(self.client, url, dict(liked='1')).status_code, 303)
+        self.assertIn(b'Saved find', self.client.get('/?scope=liked').data)
+        other = web.app.test_client()
+        self.sign_in_sample(3, other)
+        self.assertNotIn(f'id="item-{product_id}"'.encode(), other.get('/?scope=liked').data)
+        post_form(other, url, dict(liked='0'))
+        with database.connect() as conn:
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM liked_products WHERE product_id=?', (product_id,)).fetchone()[0], 1)
+        self.assertEqual(post_form(self.client, url, dict(liked='invalid')).status_code, 400)
+        self.assertEqual(post_form(self.client, '/items/2147483647/like', dict(liked='1')).status_code, 404)
+        self.assertEqual(post_form(self.client, url, dict(liked='0')).status_code, 303)
+        self.assertNotIn(f'id="item-{product_id}"'.encode(), self.client.get('/?scope=liked').data)
+
+    def test_booking_owner_restrictions_repeat_and_cancel(self):
+        product_id = self.create_listing('Book this item')
+        reserve_url = f'/items/{product_id}/booking/reserve'
+        cancel_url = f'/items/{product_id}/booking/cancel'
+        self.assertEqual(post_form(self.client, reserve_url).status_code, 302)
+        self.sign_in_sample(1)
+        self.assertEqual(post_form(self.client, reserve_url).status_code, 400)
+        self.sign_in_sample(2)
+        self.assertEqual(post_form(self.client, reserve_url).status_code, 303)
+        with database.connect() as conn:
+            expires = conn.execute('SELECT expires_at FROM product_bookings WHERE product_id=?', (product_id,)).fetchone()[0]
+        self.assertEqual(post_form(self.client, reserve_url).status_code, 303)
+        with database.connect() as conn:
+            self.assertEqual(conn.execute('SELECT expires_at FROM product_bookings WHERE product_id=?', (product_id,)).fetchone()[0], expires)
+        self.assertIn(f'id="item-{product_id}"'.encode(), self.client.get('/?scope=booked').data)
+        self.assertIn(b'Booked for you', self.client.get(f'/items/{product_id}').data)
+        self.sign_in_sample(3)
+        self.assertEqual(post_form(self.client, reserve_url).status_code, 409)
+        self.assertEqual(post_form(self.client, cancel_url).status_code, 403)
+        self.assertNotIn(b'id="checkout-form"', self.client.get(f'/checkout/{product_id}').data)
+        self.sign_in_sample(2)
+        self.assertEqual(post_form(self.client, cancel_url).status_code, 303)
+        self.assertEqual(post_form(self.client, cancel_url).status_code, 303)
+        post_form(self.client, reserve_url)
+        self.sign_in_sample(1)
+        self.assertEqual(post_form(self.client, cancel_url).status_code, 303)
+
+    def test_expired_booking_allows_another_student(self):
+        product_id = self.create_listing()
+        self.sign_in_sample(2)
+        post_form(self.client, f'/items/{product_id}/booking/reserve')
+        with database.connect() as conn:
+            conn.execute("UPDATE product_bookings SET created_at=CURRENT_TIMESTAMP-INTERVAL '25 hours', expires_at=CURRENT_TIMESTAMP-INTERVAL '1 hour' WHERE product_id=?", (product_id,))
+        self.assertNotIn(f'id="item-{product_id}"'.encode(), self.client.get('/?scope=booked').data)
+        self.sign_in_sample(3)
+        self.assertEqual(post_form(self.client, f'/items/{product_id}/booking/reserve').status_code, 303)
+        with database.connect() as conn:
+            self.assertEqual(conn.execute('SELECT student_id FROM product_bookings WHERE product_id=?', (product_id,)).fetchone()[0], 3)
+
+    def test_booking_protects_checkout_and_clears_on_sale(self):
+        product_id = self.create_listing()
+        form = self.checkout_form(product_id, buyer=2)
+        self.sign_in_sample(2)
+        post_form(self.client, f'/items/{product_id}/booking/reserve')
+        other = web.app.test_client()
+        card = self.add_card(client=other, buyer=2).json['card']
+        forged = {**form, 'card_id': card['card_id'], 'payment_reference': str(uuid.uuid4())}
+        self.assertEqual(post_form(other, f'/checkout/{product_id}', forged).status_code, 409)
+        self.sign_in_sample(3, other)
+        self.assertEqual(post_form(other, f'/checkout/{product_id}', forged).status_code, 409)
+        self.assertEqual(post_form(self.client, f'/checkout/{product_id}', form).status_code, 303)
+        with database.connect() as conn:
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM product_bookings WHERE product_id=?', (product_id,)).fetchone()[0], 0)
+            self.assertEqual(conn.execute('SELECT status FROM products WHERE product_id=?', (product_id,)).fetchone()[0], 'Sold')
+        self.assertEqual(post_form(self.client, f'/items/{product_id}/booking/reserve').status_code, 409)
+
+    def test_concurrent_bookings_have_only_one_winner(self):
+        product_id = self.create_listing()
+        def book(student_id):
+            client = web.app.test_client()
+            self.sign_in_sample(student_id, client)
+            return post_form(client, f'/items/{product_id}/booking/reserve').status_code
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            self.assertEqual(sorted(pool.map(book, (2,3))), [303,409])
+
+    def test_withdrawing_listing_cancels_booking(self):
+        product_id = self.create_listing()
+        self.sign_in_sample(2)
+        post_form(self.client, f'/items/{product_id}/booking/reserve')
+        self.sign_in_sample(1)
+        post_form(self.client, f'/listing/{product_id}/cancel')
+        with database.connect() as conn:
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM product_bookings WHERE product_id=?', (product_id,)).fetchone()[0], 0)
+
+    def test_health_detects_unapplied_schema(self):
+        with database.connect() as conn:
+            conn.execute("DELETE FROM schema_migrations WHERE version='010_bookings_likes.sql'")
+        try:
+            response = self.client.get('/api/health')
+            self.assertEqual(response.status_code, 503)
+            self.assertEqual(response.json['schema'], 'migration_required')
+        finally:
+            with database.connect() as conn:
+                conn.execute("INSERT INTO schema_migrations (version) VALUES ('010_bookings_likes.sql') ON CONFLICT DO NOTHING")
+
     def test_photo_upload_and_persistent_retrieval(self):
         from io import BytesIO
         from PIL import Image

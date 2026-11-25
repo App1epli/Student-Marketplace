@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from 'stars.html' import product_stars, sale_controls with context %}
+{% from 'saved_actions.html' import saved_actions with context %}
 {% block content %}
 
 
@@ -46,9 +47,12 @@
 <section class="hero"><div><div class="eyebrow">THE CAMPUS COLLECTION</div><h1>A little less new.<br>A little more you.</h1><p>Discover everyday essentials, share your good finds, and make campus life a little lighter.</p></div>
 <div class="stats"><span class="stat"><b>{{ counts.get('Available', 0) }}</b> available</span><span class="stat"><b>{{ counts.get('Sold', 0) }}</b> sold</span></div></section>
 <div class="workspace"><section class="panel">
-<div class="panel-heading"><div><div class="eyebrow">Student listings</div><h2>{{ 'My listings' if mine else 'Marketplace catalog' }}</h2></div><span class="subtle">{{ rows|length }} listing{{ '' if rows|length == 1 else 's' }}</span></div>
+<div class="panel-heading"><div><div class="eyebrow">Your campus collection</div><h2>{{ 'Liked' if liked else 'My bookings' if booked else 'My listings' if mine else 'Marketplace catalog' }}</h2></div><span class="subtle">{{ rows|length }} listing{{ '' if rows|length == 1 else 's' }}</span></div>
+{% if booked %}<p class="collection-note">Your active bookings are held for 24 hours. Only you can purchase them during that time. You can cancel at any time.</p>{% elif liked %}<p class="collection-note">Your saved finds. Liking an item does not reserve it; book it to hold it for 24 hours.</p>{% endif %}
 <form class="filters" method="get" action="/">
   {% if mine %}<input type="hidden" name="scope" value="mine">{% endif %}
+  {% if liked %}<input type="hidden" name="scope" value="liked">{% endif %}
+  {% if booked %}<input type="hidden" name="scope" value="booked">{% endif %}
   <input name="q" placeholder="Search by item, description, or seller" value="{{ search }}" aria-label="Search listings">
   <select name="category" aria-label="Category"><option value="">All categories</option>{% for c in categories %}<option value="{{ c.category_id }}" {% if c.category_id|string == category %}selected{% endif %}>{{ c.category_name }}</option>{% endfor %}</select>
   <select name="status" aria-label="Listing status">{% for value in statuses %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ 'All listings' if value == 'All' else value }}</option>{% endfor %}</select><button type="submit">Search</button>
@@ -61,9 +65,10 @@
   <div class="description">{{ r.description }}</div><div class="card-bottom"><div><div class="price">{{ r.price|money }}</div><div class="seller">{{ r.seller }} <span class="seller-rating">{% if r.rating %}★ {{ r.rating }} <span class="muted">({{ r.review_count }})</span>{% else %}☆ New seller{% endif %}</span></div></div></div>
   {{ product_stars(r.product_id, r.product_rating, r.product_rating_count, r.my_stars, 'catalog') }}
   {{ sale_controls(r.product_id, r.seller_id, r.status) }}
+  {{ saved_actions(r, 'liked' if liked else 'item') }}
   {% if r.status == 'Available' %}
   <div style="display:flex;gap:8px;align-items:center;">
-    <a class="button checkout-link" style="flex:1;" href="{{ url_for('checkout', product_id=r.product_id) }}">Buy this item <span aria-hidden="true">→</span></a>
+    {% if not r.booked_by or current_user and r.booked_by == current_user.student_id %}<a class="button checkout-link" style="flex:1;" href="{{ url_for('checkout', product_id=r.product_id) }}">Buy this item <span aria-hidden="true">→</span></a>{% else %}<span class="booking-unavailable">Reserved for another student</span>{% endif %}
     <form method="post" action="{{ url_for('cart_toggle', product_id=r.product_id) }}" style="margin:0;">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="button secondary" style="padding:10px 14px;min-width:44px;{{ 'background:#78569f;color:#fff;' if r.product_id in cart_product_ids else '' }}" title="{{ 'Remove from cart' if r.product_id in cart_product_ids else 'Add to cart' }}">
@@ -86,7 +91,7 @@
   {% endif %}
 </article>
 {% else %}
-<div class="empty"><div class="empty-icon">⌕</div><strong>No listings found</strong><br><span class="muted">Try another search or choose a different category.</span></div>
+<div class="empty"><div class="empty-icon">{{ '♡' if liked else '◷' if booked else '⌕' }}</div><strong>{{ 'No liked items yet' if liked else 'No active bookings' if booked else 'No listings found' }}</strong><br><span class="muted">{{ 'Tap Like on a product to save it here.' if liked else 'Book an available item to hold it for 24 hours.' if booked else 'Try another search or choose a different category.' }}</span><p><a href="/">Explore the marketplace →</a></p></div>
 {% endfor %}
 </div></section>
 {% include "listing_form.html" %}

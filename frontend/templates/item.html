@@ -1,6 +1,7 @@
 
 {% extends 'base.html' %}
 {% from 'stars.html' import product_stars, sale_controls with context %}
+{% from 'saved_actions.html' import saved_actions with context %}
 
 {% block content %}
 
@@ -11,6 +12,7 @@
 {{ product_stars(product.product_id, product_rating[0], product_rating[1], my_stars) }}
 
 {{ sale_controls(product.product_id, product.seller_id, product.status) }}
+{{ saved_actions(product) }}
 
 <div class="item-layout">
 
@@ -97,7 +99,7 @@
 
         <div class="item-actions">
 
-            {% if product.status == 'Available' %}
+            {% if product.status == 'Available' and (not product.booked_by or current_user and product.booked_by == current_user.student_id) %}
 
                 <a
                     class="button checkout-link"

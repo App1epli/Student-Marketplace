@@ -13,7 +13,7 @@ from uuid import uuid4
 from flask import Flask, Response, g, redirect, render_template, request, send_from_directory, url_for
 from flask_wtf.csrf import CSRFProtect
 
-from backend import auth, cart, messaging
+from backend import auth, cart, messaging, bookings
 from backend.database import connect, initialize_database, migrate_database, psycopg2
 from backend.payments import CheckoutError, complete_purchase, demo_buyer_id
 from backend.cards import add_card, get_card
@@ -84,6 +84,10 @@ def static_asset(filename):
 def health():
     with connect() as conn:
         conn.execute("SELECT 1 FROM students LIMIT 1")
+        applied = {row[0] for row in conn.execute('SELECT version FROM schema_migrations')}
+        pending = sorted(file.name for file in (ROOT / 'backend/migrations').glob('*.sql') if file.name not in applied)
+        if pending:
+            return {'status': 'unavailable', 'database': 'connected', 'schema': 'migration_required'}, 503
     return {"status": "ok", "database": "ok"}
 
 
@@ -91,10 +95,12 @@ def health():
 def catalog():
     user = auth.current_student()
     mine = request.args.get("scope") == "mine"
-    if mine and not user:
-        return redirect(url_for("auth.login", next="/?scope=mine&status=All"))
+    liked = request.args.get("scope") == "liked"
+    booked = request.args.get("scope") == "booked"
+    if (mine or liked or booked) and not user:
+        return redirect(url_for("auth.login", next=url_for('catalog', scope=request.args.get('scope'), status='All')))
     search = request.args.get("q", "").strip()
-    status = request.args.get("status", "Available")
+    status = request.args.get("status", "All" if liked else "Available")
     if status not in STATUSES:
         status = "Available"
     category = request.args.get("category", "")
@@ -109,6 +115,12 @@ def catalog():
     if mine:
         clauses.append("p.seller_id = ?")
         args.append(user["student_id"])
+    if liked:
+        clauses.append('EXISTS (SELECT 1 FROM liked_products WHERE product_id=p.product_id AND student_id=?)')
+        args.append(user['student_id'])
+    if booked:
+        clauses.append('EXISTS (SELECT 1 FROM product_bookings WHERE product_id=p.product_id AND student_id=? AND expires_at>CURRENT_TIMESTAMP)')
+        args.append(user['student_id'])
     if status != "All":
         clauses.append("p.status = ?")
         args.append(status)
@@ -125,6 +137,9 @@ def catalog():
         rows = conn.execute("""SELECT p.product_id, p.product_name, p.description, p.price,
             p.item_condition, p.status, c.category_name, s.full_name AS seller, s.student_id AS seller_id,
             (SELECT photo_id FROM product_photos ph WHERE ph.product_id=p.product_id ORDER BY position LIMIT 1) AS photo_id,
+            EXISTS (SELECT 1 FROM liked_products WHERE product_id=p.product_id AND student_id=?) AS liked,
+            (SELECT student_id FROM product_bookings WHERE product_id=p.product_id AND expires_at>CURRENT_TIMESTAMP) AS booked_by,
+            (SELECT expires_at FROM product_bookings WHERE product_id=p.product_id AND expires_at>CURRENT_TIMESTAMP) AS booking_expires,
             (SELECT ROUND(AVG(stars),1) FROM product_ratings WHERE product_id=p.product_id) AS product_rating,
             (SELECT COUNT(*) FROM product_ratings WHERE product_id=p.product_id) AS product_rating_count,
             (SELECT stars FROM product_ratings WHERE product_id=p.product_id AND student_id=?) AS my_stars,
@@ -134,7 +149,7 @@ def catalog():
                 JOIN products pr ON pr.product_id=pu.product_id WHERE pr.seller_id=s.student_id) AS review_count
             FROM products p JOIN categories c ON c.category_id=p.category_id
             JOIN students s ON s.student_id=p.seller_id""" + where +
-            " ORDER BY CASE p.status WHEN 'Available' THEN 0 ELSE 1 END, p.price, p.product_id", [user["student_id"] if user else None, *args]).fetchall()
+            " ORDER BY CASE p.status WHEN 'Available' THEN 0 ELSE 1 END, p.price, p.product_id", [user["student_id"] if user else None]*2 + args).fetchall()
         counts = {row["status"]: row["n"] for row in conn.execute("SELECT status, COUNT(*) AS n FROM products GROUP BY status")}
 
         hot_offers = conn.execute(
@@ -159,7 +174,7 @@ def catalog():
                            search=search, status=status, category=category,
                            conditions=CONDITIONS, statuses=STATUSES,
                            cart_product_ids=cart.get_cart_product_ids(user["student_id"] if user else None),
-                           mine=mine, notice=request.args.get("notice", ""))
+                           mine=mine, liked=liked, booked=booked, notice=request.args.get("notice", ""))
 
 
 @app.get("/sales")
@@ -175,7 +190,7 @@ def sales():
                 "(LOWER(p.product_name) LIKE LOWER(?)"
                 " OR LOWER(buyer.full_name) LIKE LOWER(?)"
                 " OR LOWER(seller.full_name) LIKE LOWER(?)"
-                " OR LOWER(COALESCE(pu.payment_reference,'')) LIKE LOWER(?))"
+                " OR LOWER(COALESCE(pu.payment_reference::text,'')) LIKE LOWER(?))"
             )
             args.extend([term, term, term, term])
     if method:
@@ -214,10 +229,16 @@ def checkout_page(product_id, *, error="", status=200, form=None):
             JOIN categories c ON c.category_id=p.category_id WHERE product_id=?""", (product_id,)).fetchone()
         if not product:
             return not_found(None)
+        booking = conn.execute('SELECT student_id, expires_at FROM product_bookings WHERE product_id=? AND expires_at>CURRENT_TIMESTAMP', (product_id,)).fetchone()
         people = conn.execute("SELECT student_id, full_name FROM students WHERE student_id<>? ORDER BY full_name", (product["seller_id"],)).fetchall()
+    user = auth.current_student()
+    booking_allowed = not booking or (user and user['student_id'] == booking['student_id'])
+    if booking and booking_allowed:
+        people = [person for person in people if person['student_id'] == booking['student_id']]
     return render_template("checkout.html", title="Checkout", product=product, people=people,
                            reference=form.get("payment_reference") or str(uuid4()),
-                           buyer_id=form.get("buyer_id", ""), method=form.get("payment_method", "Demo Card"),
+                           booking_allowed=booking_allowed, booking=booking,
+                           buyer_id=form.get("buyer_id", str(user['student_id']) if user and booking else ""), method=form.get("payment_method", "Demo Card"),
                            outcome=form.get("demo_result", "approved"), error=error), status
 
 
@@ -235,6 +256,7 @@ def checkout_submit(product_id):
     try:
         with connect() as conn:
             reference = complete_purchase(conn, product_id=product_id, buyer_id=demo_buyer_id(request.form),
+                authenticated_buyer_id=auth.current_student()['student_id'] if auth.current_student() else None,
                 method=request.form.get("payment_method", ""),
                 card_id=request.form.get("card_id"), wallet_hash=wallet_hash(),
                 reference=request.form.get("payment_reference", ""), outcome=request.form.get("demo_result", "approved"))
@@ -357,6 +379,11 @@ def item_detail(product_id):
         user = auth.current_student()
         my_rating = conn.execute("SELECT stars FROM product_ratings WHERE product_id=? AND student_id=?",
                                  (product_id, user["student_id"] if user else None)).fetchone()
+        product = dict(product)
+        product['liked'] = bool(conn.execute('SELECT 1 FROM liked_products WHERE product_id=? AND student_id=?', (product_id, user['student_id'] if user else None)).fetchone())
+        booking = conn.execute('SELECT student_id, expires_at FROM product_bookings WHERE product_id=? AND expires_at>CURRENT_TIMESTAMP', (product_id,)).fetchone()
+        product['booked_by'] = booking['student_id'] if booking else None
+        product['booking_expires'] = booking['expires_at'] if booking else None
     return render_template("item.html", title=product["product_name"], product=product, photos=photos, reviews=reviews,
                            rating=rating, product_rating=product_rating, my_stars=my_rating[0] if my_rating else None,
                            is_in_cart=product_id in cart.get_cart_product_ids(user["student_id"] if user else None),
@@ -400,6 +427,8 @@ def listing_availability(product_id, action):
             return render_template("error.html", title="Sale already completed", message="This item has already been purchased. Its completed order cannot be cancelled from the listing."), 409
         status = "Removed" if action == "cancel" else "Available"
         conn.execute("UPDATE products SET status=? WHERE product_id=?", (status, product_id))
+        if action == 'cancel':
+            conn.execute('DELETE FROM product_bookings WHERE product_id=?', (product_id,))
     notice = "Listing withdrawn. It can no longer be purchased." if action == "cancel" else "Your item is available for sale again."
     return redirect(url_for("catalog", scope="mine", status="All", notice=notice), code=303)
 
@@ -442,6 +471,54 @@ def cart_toggle(product_id):
     else:
         cart.add_to_cart(product_id, student_id)
     return redirect(request.referrer or url_for("catalog"))
+
+
+@app.get('/liked')
+@auth.login_required
+def liked_view():
+    return redirect(url_for('catalog', scope='liked', status='All'))
+
+
+@app.get('/bookings')
+@auth.login_required
+def bookings_view():
+    return redirect(url_for('catalog', scope='booked'))
+
+
+@app.post('/items/<int:product_id>/like')
+@auth.login_required
+def like_product(product_id):
+    if not 0 < product_id <= 2147483647:
+        return not_found(None)
+    desired = request.form.get('liked')
+    if desired not in ('0','1'):
+        return render_template('error.html', title='Invalid request', message='Choose whether to save the item.'), 400
+    with connect() as conn:
+        if not conn.execute('SELECT 1 FROM products WHERE product_id=?', (product_id,)).fetchone():
+            return not_found(None)
+        user_id = auth.current_student()['student_id']
+        if desired == '1':
+            conn.execute('INSERT INTO liked_products (student_id, product_id) VALUES (?, ?) ON CONFLICT DO NOTHING', (user_id, product_id))
+        else:
+            conn.execute('DELETE FROM liked_products WHERE student_id=? AND product_id=?', (user_id, product_id))
+    if request.form.get('return_view') == 'liked':
+        return redirect(url_for('liked_view'), code=303)
+    return redirect(url_for('item_detail', product_id=product_id, notice='Saved to Liked' if desired == '1' else 'Removed from Liked'), code=303)
+
+
+@app.post('/items/<int:product_id>/booking/<action>')
+@auth.login_required
+def booking_action(product_id, action):
+    if action not in ('reserve', 'cancel'):
+        return not_found(None)
+    try:
+        with connect() as conn:
+            operation = bookings.reserve if action == 'reserve' else bookings.cancel
+            operation(conn, product_id, auth.current_student()['student_id'])
+    except CheckoutError as exc:
+        return render_template('error.html', title='Booking unavailable', message=str(exc)), exc.status
+    notice = 'Reserved for you for 24 hours. No payment has been taken.' if action == 'reserve' else 'Booking cancelled. The item is available again.'
+    return redirect(url_for('item_detail', product_id=product_id, notice=notice), code=303)
 
 
 @app.post("/cart/remove/<int:product_id>")
@@ -718,6 +795,8 @@ def delete_listing(product_id):
             (product_id, user["student_id"])
         )
 
+        if result.rowcount == 1:
+            conn.execute('DELETE FROM product_bookings WHERE product_id=?', (product_id,))
         if result.rowcount == 0:
             return render_template(
                 "error.html",
@@ -752,7 +831,8 @@ def not_found(error):
 @app.errorhandler(psycopg2.Error)
 def database_unavailable(error):
     # Do not expose connection strings, SQL, hostnames, or credentials in responses/logs.
-    app.logger.error("Database request failed (%s)", type(error).__name__)
+    cause = error.__cause__ or error
+    app.logger.error("Database request failed (%s, SQLSTATE=%s)", type(cause).__name__, getattr(cause, 'pgcode', None))
     if request.path == "/api/health":
         return {"status": "unavailable", "database": "unavailable"}, 503
     if request.path.startswith("/api/"):

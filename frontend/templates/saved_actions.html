@@ -1,0 +1,22 @@
+{% macro saved_actions(item, return_view='item') %}
+<div class="saved-actions">
+{% if current_user %}
+<form method="post" action="{{ url_for('like_product', product_id=item.product_id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="liked" value="{{ '0' if item.liked else '1' }}">
+  <input type="hidden" name="return_view" value="{{ return_view }}">
+  <button class="secondary like-button {{ 'is-liked' if item.liked else '' }}" type="submit" aria-pressed="{{ 'true' if item.liked else 'false' }}"><span aria-hidden="true">{{ '♥' if item.liked else '♡' }}</span> {{ 'Liked' if item.liked else 'Like' }}</button>
+</form>
+{% else %}<a class="button secondary like-button" href="{{ url_for('auth.login', next='/items/' ~ item.product_id) }}">♡ Like</a>{% endif %}
+{% if item.status == 'Available' %}
+  {% if item.booked_by %}
+  <div class="booking-info"><span class="badge booking-badge">{{ 'Booked for you' if current_user and current_user.student_id == item.booked_by else 'Booked' }}</span><small>Until {{ item.booking_expires.strftime('%d %b, %H:%M') }} UTC</small></div>
+  {% if current_user and current_user.student_id in (item.booked_by, item.seller_id) %}
+  <form method="post" action="{{ url_for('booking_action', product_id=item.product_id, action='cancel') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="secondary">Cancel booking</button></form>
+  {% endif %}
+  {% elif current_user and current_user.student_id != item.seller_id %}
+  <form method="post" action="{{ url_for('booking_action', product_id=item.product_id, action='reserve') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="secondary">◷ Book for 24 hours</button></form>
+  {% elif not current_user %}<a class="button secondary" href="{{ url_for('auth.login', next='/items/' ~ item.product_id) }}">◷ Log in to book</a>{% endif %}
+{% endif %}
+</div>
+{% endmacro %}

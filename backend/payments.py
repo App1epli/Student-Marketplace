@@ -43,7 +43,7 @@ def demo_buyer_id(form):
     return positive_id(form.get("buyer_id"))
 
 
-def complete_purchase(conn, *, product_id, buyer_id, method, reference, card_id=None, wallet_hash=None, outcome="approved"):
+def complete_purchase(conn, *, product_id, buyer_id, method, reference, card_id=None, wallet_hash=None, outcome="approved", authenticated_buyer_id=None):
     """Create a demo purchase atomically; a replay returns the original receipt.
 
     The caller owns the transaction. Amounts and availability always come from
@@ -85,6 +85,9 @@ def complete_purchase(conn, *, product_id, buyer_id, method, reference, card_id=
         raise CheckoutError("This listing is no longer available. Choose another item.", 409)
     if product["seller_id"] == buyer_id:
         raise CheckoutError("You cannot buy your own listing.")
+    booking = conn.execute("SELECT student_id FROM product_bookings WHERE product_id=? AND expires_at>CURRENT_TIMESTAMP", (product_id,)).fetchone()
+    if booking and (booking['student_id'] != buyer_id or booking['student_id'] != authenticated_buyer_id):
+        raise CheckoutError('This item is booked. Only the signed-in student who booked it can buy it.', 409)
     if not conn.execute("SELECT 1 FROM students WHERE student_id=?", (buyer_id,)).fetchone():
         raise CheckoutError("Select a buyer from the list.")
     if outcome == "declined":
@@ -125,4 +128,5 @@ def complete_purchase(conn, *, product_id, buyer_id, method, reference, card_id=
     changed = conn.execute("UPDATE products SET status='Sold' WHERE product_id=? AND status='Available'", (product_id,)).rowcount
     if changed != 1:
         raise CheckoutError("This listing is no longer available.", 409)
+    conn.execute('DELETE FROM product_bookings WHERE product_id=?', (product_id,))
     return reference

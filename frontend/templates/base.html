@@ -15,7 +15,9 @@
   <div class="campus-workspace"><span class="campus-icon">S</span><div><strong>Student community</strong><small>Your campus marketplace</small></div><span class="online-dot"></span></div>
   <p class="nav-label">WORKSPACE</p>
   <nav class="side-nav">
-    <a class="{{ 'active' if request.path == '/' or request.path.startswith('/items') else '' }}" href="/"><span>▦</span> Marketplace</a>
+    <a class="{{ 'active' if request.path == '/' and not request.args.get('scope') or request.path.startswith('/items') else '' }}" href="/"><span>▦</span> Marketplace</a>
+    <a class="{{ 'active' if request.args.get('scope') == 'liked' else '' }}" href="{{ url_for('liked_view') }}"><span>♡</span> Liked</a>
+    <a class="{{ 'active' if request.args.get('scope') == 'booked' else '' }}" href="{{ url_for('bookings_view') }}"><span>◷</span> Bookings</a>
     <a class="{{ 'active' if request.path == '/cart' else '' }}" href="{{ url_for('cart_view') }}">
       <span>🛒</span> Cart
       {% if cart_count and cart_count > 0 %}<span class="badge" style="margin-left:auto;padding:2px 7px;font-size:11px;background:#eee5f8;color:#78569f;font-weight:700;">{{ cart_count }}</span>{% endif %}

@@ -6,14 +6,14 @@ and guest sessions (Flask session cookie).
 from __future__ import annotations
 
 from flask import session
-from backend.database import connect
+from backend import database
 
 
 def get_cart_count(student_id: int | None) -> int:
     """Return count of items in cart."""
     if student_id:
         try:
-            with connect() as conn:
+            with database.connect() as conn:
                 row = conn.execute(
                     "SELECT COUNT(*) FROM cart_items WHERE student_id = ?",
                     (student_id,)
@@ -29,7 +29,7 @@ def get_cart_product_ids(student_id: int | None) -> set[int]:
     """Return set of product_ids currently in user's cart."""
     if student_id:
         try:
-            with connect() as conn:
+            with database.connect() as conn:
                 rows = conn.execute(
                     "SELECT product_id FROM cart_items WHERE student_id = ?",
                     (student_id,)
@@ -43,7 +43,7 @@ def get_cart_product_ids(student_id: int | None) -> set[int]:
 def add_to_cart(product_id: int, student_id: int | None) -> bool:
     """Add a product to cart. Returns True if added, False if already in cart."""
     if student_id:
-        with connect() as conn:
+        with database.connect() as conn:
             # Check if already in cart
             existing = conn.execute(
                 "SELECT 1 FROM cart_items WHERE student_id = ? AND product_id = ?",
@@ -71,7 +71,7 @@ def add_to_cart(product_id: int, student_id: int | None) -> bool:
 def remove_from_cart(product_id: int, student_id: int | None) -> None:
     """Remove a product from cart."""
     if student_id:
-        with connect() as conn:
+        with database.connect() as conn:
             conn.execute(
                 "DELETE FROM cart_items WHERE student_id = ? AND product_id = ?",
                 (student_id, product_id)
@@ -91,7 +91,7 @@ def get_cart_details(student_id: int | None) -> tuple[list[dict], float]:
     if not product_ids:
         return [], 0.0
 
-    with connect() as conn:
+    with database.connect() as conn:
         placeholders = ", ".join(["?"] * len(product_ids))
         query = f"""
             SELECT p.product_id, p.product_name, p.description, p.price,
@@ -118,7 +118,7 @@ def sync_guest_cart(student_id: int) -> None:
     guest_cart = session.pop("guest_cart", [])
     if not guest_cart or not student_id:
         return
-    with connect() as conn:
+    with database.connect() as conn:
         for product_id in guest_cart:
             conn.execute(
                 """INSERT INTO cart_items (student_id, product_id)
