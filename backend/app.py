@@ -8,17 +8,19 @@ import re
 import secrets
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+import json
 from uuid import uuid4
 
 from flask import Flask, Response, g, redirect, render_template, request, send_from_directory, url_for
 from flask_wtf.csrf import CSRFProtect
 
-from backend import auth, cart, messaging, bookings
+from backend import admin, auth, bookings, cart, i18n, messaging, messenger, moderation, rbac
 from backend.database import connect, initialize_database, migrate_database, psycopg2
-from backend.payments import CheckoutError, complete_purchase, demo_buyer_id
+from backend.payments import COMMISSION_RATE, CheckoutError, complete_purchase, demo_buyer_id
 from backend.cards import add_card, get_card
 from backend.media import prepare_photos
 from backend.session_config import PersistentSessionInterface
+from backend.catalog_images import sample_image
 
 ROOT = Path(__file__).resolve().parents[1]
 app = Flask(__name__, template_folder=str(ROOT / "frontend/templates"), static_folder=None)
@@ -31,6 +33,25 @@ app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
 csrf = CSRFProtect(app)
 app.register_blueprint(auth.bp)
 app.register_blueprint(messaging.bp)
+app.register_blueprint(messenger.bp)
+app.register_blueprint(moderation.bp)
+app.register_blueprint(admin.bp)
+app.register_blueprint(i18n.bp)
+
+
+@app.context_processor
+def inject_rbac_context():
+    user = auth.current_student()
+    if not user:
+        return {"is_admin": False}
+    if not hasattr(g, "is_admin"):
+        g.is_admin = rbac.is_admin(user["student_id"])
+    return {"is_admin": g.is_admin}
+@app.context_processor
+def inject_catalog_images():
+    return {"sample_image": sample_image}
+
+
 CONDITIONS = ("New", "Like New", "Good", "Fair")
 STATUSES = ("Available", "Sold", "Removed", "All")
 
@@ -66,7 +87,7 @@ def money(value):
 @app.after_request
 def response_headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
-    if response.mimetype not in ("text/css", "image/jpeg"):
+    if request.endpoint != "static_asset" and response.mimetype not in ("text/css", "image/jpeg"):
         response.headers["Cache-Control"] = "no-store"
     if getattr(g, "new_wallet", False):
         response.set_cookie("demo_wallet", g.wallet_token, max_age=30 * 24 * 60 * 60,
@@ -78,6 +99,13 @@ def response_headers(response):
 def static_asset(filename):
     # Local fallback. Vercel serves build-copied public/static files from its CDN.
     return send_from_directory(ROOT / "frontend/static", filename)
+
+
+@app.get("/photo-credits")
+def photo_credits():
+    credits_path = ROOT / "frontend/static/images/products/credits.json"
+    credits = json.loads(credits_path.read_text(encoding="utf-8")) if credits_path.exists() else {}
+    return render_template("photo_credits.html", title="Photo credits", credits=credits)
 
 
 @app.get("/api/health")
@@ -157,8 +185,11 @@ def catalog():
             SELECT DISTINCT
                 p.product_id,
                 p.product_name,
-                p.price
+                p.price,
+                c.category_name,
+                (SELECT photo_id FROM product_photos ph WHERE ph.product_id=p.product_id ORDER BY position LIMIT 1) AS photo_id
             FROM products p
+            JOIN categories c ON c.category_id=p.category_id
             JOIN listing_promotions lp
                 ON lp.product_id = p.product_id
             WHERE p.status = 'Available'
@@ -169,7 +200,8 @@ def catalog():
             """
         ).fetchall()
 
-    return render_template("catalog.html", title="Marketplace catalog", rows=rows,hot_offers=hot_offers,
+    title = "My listings" if mine else "Liked items" if liked else "Bookings" if booked else "Marketplace catalog"
+    return render_template("catalog.html", title=title, rows=rows, hot_offers=hot_offers,
                            categories=categories, people=people, counts=counts,
                            search=search, status=status, category=category,
                            conditions=CONDITIONS, statuses=STATUSES,
@@ -315,6 +347,23 @@ def receipt(reference):
     if not purchase:
         return not_found(None)
     return render_template("receipt.html", title="Demo receipt", purchase=purchase)
+
+
+@app.get("/sell")
+def sell():
+    user = auth.current_student()
+    categories = []
+    if user:
+        with connect() as conn:
+            categories = conn.execute("SELECT category_id, category_name FROM categories WHERE is_active ORDER BY category_name").fetchall()
+    return render_template("sell.html", title="List an item", categories=categories,
+                           conditions=CONDITIONS, commission_rate=COMMISSION_RATE)
+
+
+@app.get("/listing")
+def listing_form_redirect():
+    # Supports the existing login_required redirect after a guest listing POST.
+    return redirect(url_for("sell"), code=303)
 
 
 @app.post("/listing")
@@ -501,6 +550,11 @@ def like_product(product_id):
             conn.execute('INSERT INTO liked_products (student_id, product_id) VALUES (?, ?) ON CONFLICT DO NOTHING', (user_id, product_id))
         else:
             conn.execute('DELETE FROM liked_products WHERE student_id=? AND product_id=?', (user_id, product_id))
+    if request.form.get('return_view') == 'catalog':
+        return redirect(url_for('catalog', q=request.form.get('return_q', ''),
+                                category=request.form.get('return_category', ''),
+                                status=request.form.get('return_status', 'Available'),
+                                scope=request.form.get('return_scope', '')) + f'#item-{product_id}', code=303)
     if request.form.get('return_view') == 'liked':
         return redirect(url_for('liked_view'), code=303)
     return redirect(url_for('item_detail', product_id=product_id, notice='Saved to Liked' if desired == '1' else 'Removed from Liked'), code=303)
@@ -573,10 +627,10 @@ def confirm_promotion(product_id):
     try:
         days = int(request.form["duration_days"])
     except (KeyError, ValueError):
-        return "Invalid promotion plan", 400
+        return render_template("error.html", title="Promotion unavailable", message="Invalid promotion plan"), 400
 
     if days not in PROMOTION_PLANS:
-        return "Invalid promotion plan", 400
+        return render_template("error.html", title="Promotion unavailable", message="Invalid promotion plan"), 400
 
     with connect() as conn:
         product = conn.execute(
@@ -592,7 +646,7 @@ def confirm_promotion(product_id):
         ).fetchone()
 
         if product is None:
-            return "Listing not available", 404
+            return render_template("error.html", title="Promotion unavailable", message="Listing not available"), 404
 
         active = conn.execute(
             """
@@ -606,7 +660,7 @@ def confirm_promotion(product_id):
         ).fetchone()
 
         if active:
-            return "This listing is already promoted", 409
+            return render_template("error.html", title="Promotion unavailable", message="This listing is already promoted"), 409
 
         conn.execute(
             """
@@ -648,7 +702,8 @@ def my_listings():
             SELECT p.product_id, p.product_name,
                    p.description, p.price,
                    p.item_condition, p.status,
-                   c.category_name
+                   c.category_name,
+                   (SELECT photo_id FROM product_photos ph WHERE ph.product_id=p.product_id ORDER BY position LIMIT 1) AS photo_id
             FROM products p
             JOIN categories c
                 ON c.category_id = p.category_id
@@ -660,7 +715,7 @@ def my_listings():
 
     return render_template(
         "my_listings.html",
-        title="My Listings",
+        title="My listings",
         rows=rows,
         notice=request.args.get("notice", "")
     )

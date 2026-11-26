@@ -137,8 +137,10 @@ def login():
     if student is None:
         return render_template("login.html", title="Log in",
                                error="Invalid email or password.", notice=""), 401
+    guest_cart = session.get("guest_cart", [])
     session.clear()
     session["student_id"] = student
+    session["guest_cart"] = guest_cart
     from backend.cart import sync_guest_cart
     sync_guest_cart(student)
     target = request.args.get("next", "")

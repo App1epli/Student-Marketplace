@@ -1,4 +1,4 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="panel"><h2>{{ title }}</h2><p>{{ message }}</p><a class="button" href="/">Open catalog</a></section>
+<section class="panel"><h2>{{ _(title) }}</h2><p>{{ _(message) }}</p><a class="button" href="/">{{ _("Open catalog") }}</a></section>
 {% endblock %}

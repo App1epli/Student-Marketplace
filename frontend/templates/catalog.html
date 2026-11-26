@@ -1,99 +1,39 @@
 {% extends "base.html" %}
-{% from 'stars.html' import product_stars, sale_controls with context %}
-{% from 'saved_actions.html' import saved_actions with context %}
+{% from 'icons.html' import icon %}
+{% from 'marketplace_card.html' import product_card with context %}
 {% block content %}
-
-
-{% if hot_offers %}
-
-<section class="panel hot-offers">
-
-    <h2>🔥 Hot Offers</h2>
-    <p class="subtle">
-        Promoted student listings
-    </p>
-
-    <div class="catalog">
-
-        {% for item in hot_offers %}
-
-        <article class="listing">
-
-            <span class="hot-badge">
-                Sponsored · Hot Offer
-            </span>
-
-            <h3>
-                <a href="{{ url_for('item_detail',
-                         product_id=item.product_id) }}">
-                    {{ item.product_name }}
-                </a>
-            </h3>
-
-            <div class="price">
-                {{ item.price|money }}
-            </div>
-
-        </article>
-
-        {% endfor %}
-
-    </div>
-
-</section>
-
-{% endif %}
-
-<section class="hero"><div><div class="eyebrow">THE CAMPUS COLLECTION</div><h1>A little less new.<br>A little more you.</h1><p>Discover everyday essentials, share your good finds, and make campus life a little lighter.</p></div>
-<div class="stats"><span class="stat"><b>{{ counts.get('Available', 0) }}</b> available</span><span class="stat"><b>{{ counts.get('Sold', 0) }}</b> sold</span></div></section>
-<div class="workspace"><section class="panel">
-<div class="panel-heading"><div><div class="eyebrow">Your campus collection</div><h2>{{ 'Liked' if liked else 'My bookings' if booked else 'My listings' if mine else 'Marketplace catalog' }}</h2></div><span class="subtle">{{ rows|length }} listing{{ '' if rows|length == 1 else 's' }}</span></div>
-{% if booked %}<p class="collection-note">Your active bookings are held for 24 hours. Only you can purchase them during that time. You can cancel at any time.</p>{% elif liked %}<p class="collection-note">Your saved finds. Liking an item does not reserve it; book it to hold it for 24 hours.</p>{% endif %}
-<form class="filters" method="get" action="/">
-  {% if mine %}<input type="hidden" name="scope" value="mine">{% endif %}
-  {% if liked %}<input type="hidden" name="scope" value="liked">{% endif %}
-  {% if booked %}<input type="hidden" name="scope" value="booked">{% endif %}
-  <input name="q" placeholder="Search by item, description, or seller" value="{{ search }}" aria-label="Search listings">
-  <select name="category" aria-label="Category"><option value="">All categories</option>{% for c in categories %}<option value="{{ c.category_id }}" {% if c.category_id|string == category %}selected{% endif %}>{{ c.category_name }}</option>{% endfor %}</select>
-  <select name="status" aria-label="Listing status">{% for value in statuses %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ 'All listings' if value == 'All' else value }}</option>{% endfor %}</select><button type="submit">Search</button>
-</form>
-<div class="catalog">
-{% for r in rows %}
-<article class="listing" id="item-{{ r.product_id }}">
-  <a class="listing-image" href="{{ url_for('item_detail', product_id=r.product_id) }}" aria-label="View {{ r.product_name }}">{% if r.photo_id %}<img src="{{ url_for('product_photo', photo_id=r.photo_id) }}" alt="{{ r.product_name }}" loading="lazy">{% else %}<span class="product-placeholder" aria-hidden="true">{{ {'Electronics':'⌘', 'Books and Study':'▤', 'Dorm Essentials':'⌂', 'Clothing and Bags':'♧'}.get(r.category_name,'◇') }}</span><span class="photo-placeholder-label">{{ r.category_name }}</span>{% endif %}</a>
-  <div class="listing-top"><div><div class="tags"><span class="tag">{{ r.category_name }}</span><span class="tag">{{ r.item_condition }}</span></div><h3 style="margin-top:9px"><a href="{{ url_for('item_detail', product_id=r.product_id) }}">{{ r.product_name }}</a></h3></div><span class="badge {{ 'sold' if r.status != 'Available' else '' }}">{{ r.status }}</span></div>
-  <div class="description">{{ r.description }}</div><div class="card-bottom"><div><div class="price">{{ r.price|money }}</div><div class="seller">{{ r.seller }} <span class="seller-rating">{% if r.rating %}★ {{ r.rating }} <span class="muted">({{ r.review_count }})</span>{% else %}☆ New seller{% endif %}</span></div></div></div>
-  {{ product_stars(r.product_id, r.product_rating, r.product_rating_count, r.my_stars, 'catalog') }}
-  {{ sale_controls(r.product_id, r.seller_id, r.status) }}
-  {{ saved_actions(r, 'liked' if liked else 'item') }}
-  {% if r.status == 'Available' %}
-  <div style="display:flex;gap:8px;align-items:center;">
-    {% if not r.booked_by or current_user and r.booked_by == current_user.student_id %}<a class="button checkout-link" style="flex:1;" href="{{ url_for('checkout', product_id=r.product_id) }}">Buy this item <span aria-hidden="true">→</span></a>{% else %}<span class="booking-unavailable">Reserved for another student</span>{% endif %}
-    <form method="post" action="{{ url_for('cart_toggle', product_id=r.product_id) }}" style="margin:0;">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit" class="button secondary" style="padding:10px 14px;min-width:44px;{{ 'background:#78569f;color:#fff;' if r.product_id in cart_product_ids else '' }}" title="{{ 'Remove from cart' if r.product_id in cart_product_ids else 'Add to cart' }}">
-        {{ '✓ In cart' if r.product_id in cart_product_ids else '🛒' }}
-      </button>
-    </form>
+{% if not mine and not liked and not booked %}
+<section class="hero" aria-labelledby="hero-heading">
+  <img class="hero-photo" src="/static/images/campus-lounge.png" alt="{{ _('University students in a campus lounge') }}" width="1376" height="768" fetchpriority="high">
+  <div class="hero-content">
+    <h1 id="hero-heading">{{ _('Good things deserve a second chapter.') }}</h1>
+    <p>{{ _('Buy and sell pre-loved finds with students from your campus.') }}</p>
+    <a class="button hero-cta" href="{{ url_for('sell') }}">{{ _('Start selling') }} {{ icon('arrow-right') }}</a>
+    <a class="hero-explore" href="#catalog">{{ _('Explore the marketplace') }}</a>
   </div>
-  <span class="muted">Demo checkout · no real charges</span>
-  {% if current_user and r.seller_id != current_user.student_id %}
-  <details class="buy"><summary>Contact seller</summary>
-    <form method="post" action="{{ url_for('messaging.start') }}" style="margin-top:10px">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="product_id" value="{{ r.product_id }}">
-      <button type="submit">Open chat</button>
-    </form>
-  </details>
-  {% elif not current_user %}
-  <span class="muted"><a href="{{ url_for('auth.login') }}">Log in</a> to message the seller</span>
+</section>
+{% endif %}
+<section class="catalog-section" id="catalog" aria-labelledby="catalog-heading">
+  <div class="panel-heading catalog-heading"><h2 id="catalog-heading">{{ _(title) }}</h2><span class="listing-count">{{ count_label('listing', rows|length) }}</span></div>
+  <nav class="category-filter" aria-label="{{ _('Filter by category') }}">
+    <a href="{{ url_for('catalog', q=search, status=status, scope=request.args.get('scope'), category='') }}" class="category-link{{ ' is-active' if not category else '' }}" {% if not category %}aria-current="page"{% endif %}>{{ _('All categories') }}</a>
+    {% for c in categories %}<a href="{{ url_for('catalog', q=search, status=status, scope=request.args.get('scope'), category=c.category_id) }}" class="category-link{{ ' is-active' if c.category_id|string == category else '' }}" {% if c.category_id|string == category %}aria-current="page"{% endif %}>{{ _(c.category_name) }}</a>{% endfor %}
+  </nav>
+  <form class="filters catalog-filters" method="get" action="/">
+    {% if request.args.get('scope') %}<input type="hidden" name="scope" value="{{ request.args.get('scope') }}">{% endif %}
+    <input type="hidden" name="category" value="{{ category }}">
+    <div class="search-field">{{ icon('search') }}<input name="q" placeholder="{{ _('Search by item, description, or seller') }}" value="{{ search }}" aria-label="{{ _('Search listings') }}"></div>
+    <div class="select-field"><select name="status" aria-label="{{ _('Listing status') }}">{% for value in statuses %}<option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ _('All listings' if value == 'All' else value) }}</option>{% endfor %}</select>{{ icon('chevron-down') }}</div>
+    <button type="submit">{{ _('Search') }}</button>
+    {% if search or category %}<a class="reset-filters" href="{{ url_for('catalog', status=status, scope=request.args.get('scope')) }}">{{ _('Reset') }}</a>{% endif %}
+  </form>
+  {% if hot_offers %}
+  <div class="hot-offers"><strong>{{ _('Hot Offers') }}</strong><div class="hot-offer-list">{% for offer in hot_offers %}<a href="{{ url_for('item_detail', product_id=offer.product_id) }}">{% if offer.photo_id %}<img src="{{ url_for('product_photo', photo_id=offer.photo_id) }}" alt="" loading="lazy">{% elif sample_image(offer.product_name, offer.category_name) %}<img src="{{ sample_image(offer.product_name, offer.category_name) }}" alt="" loading="lazy">{% endif %}<span>{{ offer.product_name }}<small>{{ offer.price|money }}</small></span></a>{% endfor %}</div></div>
   {% endif %}
-  {% endif %}
-</article>
-{% else %}
-<div class="empty"><div class="empty-icon">{{ '♡' if liked else '◷' if booked else '⌕' }}</div><strong>{{ 'No liked items yet' if liked else 'No active bookings' if booked else 'No listings found' }}</strong><br><span class="muted">{{ 'Tap Like on a product to save it here.' if liked else 'Book an available item to hold it for 24 hours.' if booked else 'Try another search or choose a different category.' }}</span><p><a href="/">Explore the marketplace →</a></p></div>
-{% endfor %}
-</div></section>
-{% include "listing_form.html" %}
-</div>
+  <div class="catalog product-grid">
+    {% for r in rows %}{{ product_card(r) }}{% else %}
+    <div class="empty"><div class="empty-icon">{{ icon('search') }}</div><strong>{{ _('No listings found') }}</strong><p>{{ _('Try another search or choose a different category.') }}</p></div>
+    {% endfor %}
+  </div>
+</section>
 {% endblock %}

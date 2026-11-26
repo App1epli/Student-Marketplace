@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="admin-reports-container" style="display:flex;flex-direction:column;gap:20px;">
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;">
+    <div>
+      <div class="eyebrow"><a href="{{ url_for('admin.dashboard') }}" style="color:var(--plum-600);">{{ _("← ADMIN DASHBOARD") }}</a></div>
+      <h1 style="font-size:24px;margin:4px 0 0;color:var(--ink);">
+        {% if selected_report %}
+        {{ _("Report #") }}{{ selected_report.report_id }}: {{ _(selected_report.reason) }}
+        {% else %}
+        {{ _("Moderation Reports") }}
+        {% endif %}
+      </h1>
+    </div>
+    {% if selected_report %}
+    <div>
+      <a href="{{ url_for('admin.reports') }}" class="button small secondary">{{ _("Back to all reports") }}</a>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if notice %}
+  <div class="notice" style="border-radius:6px;padding:10px 14px;font-size:12px;">{{ _(notice) }}</div>
+  {% endif %}
+
+  {% if not selected_report %}
+  <!-- List View with Status Filtering -->
+  <section class="panel" style="padding:18px;">
+    <!-- Filter Bar -->
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
+      <span class="subtle" style="font-size:12px;margin-right:6px;">{{ _("Filter by Status:") }}</span>
+      <a href="{{ url_for('admin.reports') }}"
+         class="tag" style="padding:6px 12px;font-size:12px;text-decoration:none;{{ 'background:var(--plum-700);color:#fff;' if current_status == 'All' else 'background:var(--plum-100);color:var(--plum-700);' }}">
+        {{ _("All") }}
+      </a>
+      {% for st in statuses %}
+      <a href="{{ url_for('admin.reports', status=st) }}"
+         class="tag" style="padding:6px 12px;font-size:12px;text-decoration:none;{{ 'background:var(--plum-700);color:#fff;' if current_status == st else 'background:var(--plum-100);color:var(--plum-700);' }}">
+        {{ _(st) }}
+      </a>
+      {% endfor %}
+    </div>
+
+    <!-- Reports Table -->
+    <table class="sales-table" style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--line);text-align:left;">
+          <th style="padding:10px 8px;">ID</th>
+          <th style="padding:10px 8px;">{{ _("Created") }}</th>
+          <th style="padding:10px 8px;">{{ _("Item") }}</th>
+          <th style="padding:10px 8px;">{{ _("Parties") }}</th>
+          <th style="padding:10px 8px;">{{ _("Reporter") }}</th>
+          <th style="padding:10px 8px;">{{ _("Reason") }}</th>
+          <th style="padding:10px 8px;">{{ _("Status") }}</th>
+          <th style="padding:10px 8px;text-align:right;">{{ _("Action") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in reports %}
+        <tr style="border-bottom:1px solid var(--line);">
+          <td style="padding:12px 8px;font-weight:700;">#{{ r.report_id }}</td>
+          <td style="padding:12px 8px;font-size:11px;color:var(--muted);">{{ r.created_at }}</td>
+          <td style="padding:12px 8px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            <strong>{{ r.product_name }}</strong>
+          </td>
+          <td style="padding:12px 8px;font-size:11px;">
+            {{ _("Buyer:") }} {{ r.buyer_name }}<br>{{ _("Seller:") }} {{ r.seller_name }}
+          </td>
+          <td style="padding:12px 8px;font-size:12px;">{{ r.reporter_name }}</td>
+          <td style="padding:12px 8px;"><span class="tag">{{ _(r.reason) }}</span></td>
+          <td style="padding:12px 8px;">
+            <span class="badge" style="{% if r.status == 'Pending' %}background:#fff3cd;color:#856404;{% elif r.status == 'Resolved' %}background:#e9f5ee;color:#277653;{% else %}background:var(--plum-100);color:var(--plum-600);{% endif %}">
+              {{ _(r.status) }}
+            </span>
+          </td>
+          <td style="padding:12px 8px;text-align:right;">
+            <a href="{{ url_for('admin.report_detail', report_id=r.report_id) }}" class="button small secondary" style="font-size:11px;padding:5px 12px;">
+              {{ _("Review Report →") }}
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" style="padding:36px;text-align:center;color:var(--muted);">
+            {{ _("No reports found matching this criteria.") }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  {% else %}
+  <!-- Detail View of Selected Report -->
+  <div style="display:grid;grid-template-columns:360px minmax(0, 1fr);gap:20px;align-items:start;">
+    <!-- Left Column: Report Info and Status Update Form -->
+    <div style="display:flex;flex-direction:column;gap:18px;">
+      <section class="panel" style="padding:18px;">
+        <div class="panel-heading">
+          <h2>{{ _("Report Information") }}</h2>
+          <span class="badge" style="{% if selected_report.status == 'Pending' %}background:#fff3cd;color:#856404;{% elif selected_report.status == 'Resolved' %}background:#e9f5ee;color:#277653;{% else %}background:var(--plum-100);color:var(--plum-600);{% endif %}">
+            {{ _(selected_report.status) }}
+          </span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:12px;margin-top:8px;">
+          <div><strong style="color:var(--muted);">{{ _("Reported Reason:") }}</strong> <span class="tag" style="margin-left:4px;">{{ _(selected_report.reason) }}</span></div>
+          <div><strong style="color:var(--muted);">{{ _("Reporter:") }}</strong> {{ selected_report.reporter_name }} ({{ selected_report.reporter_email }})</div>
+          <div><strong style="color:var(--muted);">{{ _("Product:") }}</strong> <a href="{{ url_for('item_detail', product_id=selected_report.product_id) }}">{{ selected_report.product_name }}</a></div>
+          <div><strong style="color:var(--muted);">{{ _("Participants:") }}</strong> {{ _("Buyer:") }} {{ selected_report.buyer_name }} {{ _("· Seller:") }} {{ selected_report.seller_name }}</div>
+          <div><strong style="color:var(--muted);">{{ _("Submitted:") }}</strong> {{ selected_report.created_at }}</div>
+          {% if selected_report.explanation %}
+          <div style="margin-top:6px;padding:10px;border-radius:6px;background:var(--plum-50);border:1px solid var(--line);">
+            <strong style="display:block;margin-bottom:4px;color:var(--plum-700);">{{ _("Reporter Explanation:") }}</strong>
+            <div style="white-space:pre-wrap;color:var(--ink);">{{ selected_report.explanation }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </section>
+
+      <!-- Status Update Panel -->
+      <section class="panel" style="padding:18px;">
+        <div class="panel-heading">
+          <h2>{{ _("Update Status") }}</h2>
+          <span class="subtle">{{ _("Audit logged") }}</span>
+        </div>
+        <form method="post" action="{{ url_for('admin.update_status', report_id=selected_report.report_id) }}" style="display:flex;flex-direction:column;gap:12px;margin-top:8px;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div>
+            <label for="status" style="font-size:11px;font-weight:600;display:block;margin-bottom:4px;">{{ _("Report Status") }}</label>
+            <select id="status" name="status" required style="font-size:12px;padding:8px;">
+              {% for st in statuses %}
+              <option value="{{ _(st) }}" {% if selected_report.status == st %}selected{% endif %}>{{ _(st) }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label for="notes" style="font-size:11px;font-weight:600;display:block;margin-bottom:4px;">{{ _("Resolution Notes (Optional)") }}</label>
+            <textarea id="notes" name="notes" rows="3" placeholder="{{ _('Provide reason for status change or notes for moderation log...') }}" style="font-size:12px;padding:8px;"></textarea>
+          </div>
+          <button type="submit" class="button small" style="align-self:flex-start;">{{ _("Apply Status Update") }}</button>
+        </form>
+      </section>
+
+      <!-- Audit History -->
+      <section class="panel" style="padding:18px;">
+        <div class="panel-heading">
+          <h2>{{ _("Audit Trail") }}</h2>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;max-height:240px;overflow-y:auto;font-size:11px;">
+          {% for log in audit_history %}
+          <div style="padding:8px;border-radius:6px;background:var(--plum-50);border:1px solid var(--line);">
+            <strong style="color:var(--plum-700);">{{ _(log.action) }}</strong> · <span class="muted">{{ log.created_at }}</span>
+            <div style="margin-top:2px;color:var(--ink);">{{ log.details }}</div>
+            <div class="muted">{{ _("By:") }} {{ log.admin_name }}</div>
+          </div>
+          {% else %}
+          <div class="muted" style="text-align:center;padding:12px;">{{ _("No prior actions recorded for this report.") }}</div>
+          {% endfor %}
+        </div>
+      </section>
+    </div>
+
+    <!-- Right Column: Read-Only Reported Conversation Chat Log -->
+    <section class="panel" style="padding:0;overflow:hidden;background:#fff;">
+      <header style="padding:14px 18px;border-bottom:1px solid var(--line);background:var(--plum-50);display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div class="eyebrow" style="color:#d9534f;">{{ _("REPORTED CONVERSATION LOG (READ-ONLY)") }}</div>
+          <h2 style="font-size:15px;margin:2px 0 0;">{{ _("Conversation #") }}{{ selected_report.conversation_id }}</h2>
+        </div>
+        <span class="subtle" style="font-size:11px;">{{ count_label('message', messages|length) }}</span>
+      </header>
+      <div style="padding:18px;max-height:640px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;background:var(--bg);">
+        {% for m in messages %}
+        <div style="padding:10px 14px;border-radius:8px;background:#fff;border:1px solid var(--line);box-shadow:0 1px 3px #00000008;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+            <strong style="font-size:12px;color:var(--plum-700);">{{ m.sender }}</strong>
+            <small class="muted" style="font-size:10px;">{{ m.sent_at }}</small>
+          </div>
+          <div style="font-size:13px;color:var(--ink);white-space:pre-wrap;word-break:break-word;">{{ m.message_text }}</div>
+        </div>
+        {% else %}
+        <div class="muted" style="text-align:center;padding:40px 0;">{{ _("No messages found in this reported conversation.") }}</div>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+

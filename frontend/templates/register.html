@@ -1,29 +1,29 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="panel" style="max-width:560px">
-  <h2>Create account</h2>
-  <p class="subtle">Register with your student email. If that email is already linked to a student record, ask an administrator to attach a login instead.</p>
-  {% if error %}<p class="checkout-error" role="alert">{{ error }}</p>{% endif %}
+<section class="panel auth-panel" style="max-width:560px">
+  <h2>{{ _("Create account") }}</h2>
+  <p class="subtle">{{ _("Register with your student email. If that email is already linked to a student record, ask an administrator to attach a login instead.") }}</p>
+  {% if error %}<p class="checkout-error" role="alert">{{ _(error) }}</p>{% endif %}
   <form method="post" action="{{ url_for('auth.register') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label for="full_name">Full name</label>
+    <label for="full_name">{{ _("Full name") }}</label>
     <input id="full_name" name="full_name" value="{{ form.get('full_name', '') }}" maxlength="120" required>
-    <label for="student_number">Student number</label>
+    <label for="student_number">{{ _("Student number") }}</label>
     <input id="student_number" name="student_number" value="{{ form.get('student_number', '') }}" maxlength="30" required>
-    <label for="email">Email</label>
+    <label for="email">{{ _("Email") }}</label>
     <input id="email" name="email" type="email" autocomplete="email" value="{{ form.get('email', '') }}" required>
-    <label for="study_program">Study program</label>
+    <label for="study_program">{{ _("Study program") }}</label>
     <input id="study_program" name="study_program" value="{{ form.get('study_program', '') }}" maxlength="120" required>
-    <label for="study_year">Study year</label>
+    <label for="study_year">{{ _("Study year") }}</label>
     <select id="study_year" name="study_year" required>
-      {% for y in years %}<option value="{{ y }}" {% if form.get('study_year') == y|string %}selected{% endif %}>Year {{ y }}</option>{% endfor %}
+      {% for y in years %}<option value="{{ y }}" {% if form.get('study_year') == y|string %}selected{% endif %}>{{ _('Year {year}', year=y) }}</option>{% endfor %}
     </select>
-    <label for="password">Password</label>
+    <label for="password">{{ _("Password") }}</label>
     <input id="password" name="password" type="password" autocomplete="new-password" minlength="8" required>
-    <label for="confirm_password">Confirm password</label>
+    <label for="confirm_password">{{ _("Confirm password") }}</label>
     <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" minlength="8" required>
-    <div class="form-actions"><button type="submit">Create account</button></div>
+    <div class="form-actions"><button type="submit">{{ _("Create account") }}</button></div>
   </form>
-  <p class="subtle">Already registered? <a href="{{ url_for('auth.login') }}">Log in</a>.</p>
+  <p class="subtle">{{ _("Already registered?") }} <a href="{{ url_for('auth.login') }}">{{ _("Log in") }}</a>.</p>
 </section>
 {% endblock %}

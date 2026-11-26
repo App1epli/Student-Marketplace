@@ -1,262 +1,36 @@
-
 {% extends 'base.html' %}
 {% from 'stars.html' import product_stars, sale_controls with context %}
 {% from 'saved_actions.html' import saved_actions with context %}
-
+{% from 'icons.html' import icon %}
 {% block content %}
-
-<a class="back-link" href="/">
-    ← Back to marketplace
-</a>
-
-{{ product_stars(product.product_id, product_rating[0], product_rating[1], my_stars) }}
-
-{{ sale_controls(product.product_id, product.seller_id, product.status) }}
-{{ saved_actions(product) }}
-
+<a class="back-link" href="/">{{ _('← Back to marketplace') }}</a>
 <div class="item-layout">
-
-    <section class="panel item-gallery">
-
-        <div class="eyebrow">
-            THE CAMPUS COLLECTION
-        </div>
-
-        {% if photos %}
-
-            {% for photo in photos %}
-                <img
-                    src="{{ url_for('product_photo', photo_id=photo.photo_id) }}"
-                    alt="{{ product.product_name }} — photo {{ loop.index }}"
-                    {% if not loop.first %}loading="lazy"{% endif %}
-                >
-            {% endfor %}
-
-        {% else %}
-
-            <div class="gallery-placeholder">
-                ◇
-                <span>No photos added yet</span>
-            </div>
-
-        {% endif %}
-
-    </section>
-
-    <section class="panel item-info">
-
-        <div class="tags">
-            <span class="tag">
-                {{ product.category_name }}
-            </span>
-
-            <span class="badge">
-                {{ product.status }}
-            </span>
-        </div>
-
-        <h1>{{ product.product_name }}</h1>
-
-        <p class="price">
-            {{ product.price|money }}
-        </p>
-
-        <p class="item-description">
-            {{ product.description }}
-        </p>
-
-        <p class="subtle">
-            Condition: {{ product.item_condition }}
-        </p>
-
-        <hr>
-
-        <div class="eyebrow">
-            MEET YOUR SELLER
-        </div>
-
-        <h2>{{ product.seller }}</h2>
-
-        <p class="seller-rating">
-
-            {% if rating[0] %}
-
-                ★ {{ rating[0] }} / 5
-
-                <span class="muted">
-                    · {{ rating[1] }} verified buyer reviews
-                </span>
-
-            {% else %}
-
-                ☆ New seller · no reviews yet
-
-            {% endif %}
-
-        </p>
-
-        <!-- BUY AND SHARE BUTTONS -->
-
-        <div class="item-actions">
-
-            {% if product.status == 'Available' and (not product.booked_by or current_user and product.booked_by == current_user.student_id) %}
-
-                <a
-                    class="button checkout-link"
-                    href="{{ url_for('checkout', product_id=product.product_id) }}"
-                >
-                    Buy this item →
-                </a>
-
-                <form method="post" action="{{ url_for('cart_toggle', product_id=product.product_id) }}" style="margin:0;">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="button secondary" style="{{ 'background:#78569f;color:#fff;' if is_in_cart else '' }}">
-                        {{ '✓ In cart' if is_in_cart else '🛒 Add to cart' }}
-                    </button>
-                </form>
-
-            {% endif %}
-
-            <button
-                type="button"
-                class="button secondary share-button"
-                id="share-listing"
-                data-title="{{ product.product_name }}"
-            >
-                Share ↗
-            </button>
-
-        </div>
-
-        <p
-            id="share-feedback"
-            class="subtle"
-            role="status"
-            aria-live="polite"
-        ></p>
-
-        <p class="hint">
-            Demo payments · No real charges
-        </p>
-
-    </section>
-
-</div>
-
-<!-- SELLER REVIEWS -->
-
-<section class="panel seller-reviews">
-
-    <div class="panel-heading">
-
-        <h2>Seller reviews</h2>
-
-        <span class="tag">
-            Verified purchases
-        </span>
-
+  <section class="panel item-gallery">
+    {% if photos %}{% for photo in photos %}<img src="{{ url_for('product_photo', photo_id=photo.photo_id) }}" alt="{{ _('{item} — photo {number}', item=product.product_name, number=loop.index) }}" {% if not loop.first %}loading="lazy"{% endif %}>{% endfor %}
+    {% elif sample_image(product.product_name, product.category_name) %}<img class="sample-product-image" src="{{ sample_image(product.product_name, product.category_name) }}" alt="{{ _('Sample photo: {item}', item=product.product_name) }}"><p class="hint">{{ _('Sample photo') }}</p>
+    {% else %}<div class="gallery-placeholder"><span>{{ _('No photos added yet') }}</span></div>{% endif %}
+  </section>
+  <section class="panel item-info">
+    <div class="tags"><span class="tag">{{ _(product.category_name) }}</span><span class="badge">{{ _(product.status) }}</span></div>
+    <h1>{{ product.product_name }}</h1><p class="price">{{ product.price|money }}</p>
+    <p class="item-description">{{ product.description }}</p><p class="subtle">{{ _('Condition:') }} {{ _(product.item_condition) }}</p>
+    {{ saved_actions(product) }}
+    <div class="item-actions">
+      {% if product.status == 'Available' and (not product.booked_by or current_user and product.booked_by == current_user.student_id) and (not current_user or product.seller_id != current_user.student_id) %}
+      <a class="button checkout-link" href="{{ url_for('checkout', product_id=product.product_id) }}">{{ _('Buy this item') }} {{ icon('arrow-right') }}</a>
+      <form method="post" action="{{ url_for('cart_toggle', product_id=product.product_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="secondary" type="submit">{{ icon('shopping-cart') }}{{ _('In cart' if is_in_cart else 'Add to cart') }}</button></form>
+      {% endif %}
+      {% if current_user and current_user.student_id != product.seller_id %}<form method="post" action="{{ url_for('messenger.start') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product_id" value="{{ product.product_id }}"><button type="submit" class="secondary">{{ icon('message-square') }}{{ _('Contact seller') }}</button></form>{% elif not current_user %}<a class="button secondary" href="{{ url_for('auth.login', next='/items/' ~ product.product_id) }}">{{ icon('message-square') }}{{ _('Contact seller') }}</a>{% endif %}
+      <button type="button" class="secondary" id="share-listing" data-title="{{ product.product_name }}">{{ icon('share') }}{{ _('Share') }}</button>
     </div>
-
-    {% for review in reviews %}
-
-        <article class="review-entry">
-
-            <span
-                class="seller-rating"
-                aria-label="{{ review.stars }} out of 5 stars"
-            >
-                {{ '★' * review.stars }}{{ '☆' * (5-review.stars) }}
-            </span>
-
-            <strong>
-                {{ review.buyer }}
-            </strong>
-
-            <p>
-                {{ review.comment or 'Buyer left a star rating.' }}
-            </p>
-
-        </article>
-
-    {% else %}
-
-        <p class="subtle">
-            No reviews yet. Buyers can rate their seller
-            from Purchase history after a purchase.
-        </p>
-
-    {% endfor %}
-
-</section>
-
-<!-- SHARE FUNCTIONALITY -->
-
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-
-    const shareButton = document.getElementById("share-listing");
-    const shareFeedback = document.getElementById("share-feedback");
-
-    if (!shareButton) {
-        return;
-    }
-
-    shareButton.addEventListener("click", async function () {
-
-        const title = shareButton.dataset.title;
-        const url = window.location.href;
-
-        try {
-
-            if (navigator.share) {
-
-                await navigator.share({
-                    title: title,
-                    text: "Check out this item on Student Marketplace!",
-                    url: url
-                });
-
-            } else if (navigator.clipboard && navigator.clipboard.writeText) {
-
-                await navigator.clipboard.writeText(url);
-
-                shareFeedback.textContent = "Link copied!";
-
-            } else {
-
-                const input = document.createElement("textarea");
-
-                input.value = url;
-                input.style.position = "fixed";
-                input.style.opacity = "0";
-
-                document.body.appendChild(input);
-
-                input.select();
-
-                const copied = document.execCommand("copy");
-
-                document.body.removeChild(input);
-
-                shareFeedback.textContent = copied
-                    ? "Link copied!"
-                    : "Could not copy the link.";
-            }
-
-        } catch (error) {
-
-            if (error.name !== "AbortError") {
-
-                shareFeedback.textContent =
-                    "Could not share this link.";
-
-            }
-
-        }
-
-    });
-
-});
-</script>
-
+    <p id="share-feedback" class="hint" role="status"></p>
+    <p class="hint">{{ _('Demo payments · No real charges') }}</p>
+    {{ product_stars(product.product_id, product_rating[0], product_rating[1], my_stars) }}
+    {{ sale_controls(product.product_id, product.seller_id, product.status) }}
+    {% if current_user and current_user.student_id == product.seller_id and product.status == 'Available' %}<div class="item-actions"><a class="button secondary" href="{{ url_for('edit_listing', product_id=product.product_id) }}">{{ _('Edit Listing') }}</a><a class="button secondary" href="{{ url_for('promote_listing', product_id=product.product_id) }}">{{ _('Promote') }}</a></div>{% endif %}
+    <hr><div class="eyebrow">{{ _('MEET YOUR SELLER') }}</div><h2>{{ product.seller }}</h2><p class="seller-rating">{% if rating[0] %}★ {{ rating[0] }} / 5 <span class="muted">· {{ rating[1] }} {{ _('verified buyer reviews') }}</span>{% else %}{{ _('☆ New seller · no reviews yet') }}{% endif %}</p>
+  </section>
+</div>
+<section class="panel seller-reviews"><div class="panel-heading"><h2>{{ _('Seller reviews') }}</h2><span class="tag">{{ _('Verified purchases') }}</span></div>{% for review in reviews %}<article class="review-entry"><span class="seller-rating" aria-label="{{ _('{stars} out of 5 stars', stars=review.stars) }}">{{ '★' * review.stars }}{{ '☆' * (5-review.stars) }}</span><strong>{{ review.buyer }}</strong><p>{{ review.comment or _('Buyer left a star rating.') }}</p></article>{% else %}<p class="subtle">{{ _('No reviews yet. Buyers can rate their seller from Purchase history after a purchase.') }}</p>{% endfor %}</section>
+<script src="/static/item.js" defer></script>
 {% endblock %}

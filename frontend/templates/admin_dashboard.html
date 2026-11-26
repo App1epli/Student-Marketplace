@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="admin-dashboard-container" style="display:flex;flex-direction:column;gap:24px;">
+  <!-- Header / Breadcrumb -->
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;">
+    <div>
+      <div class="eyebrow">{{ _("ADMINISTRATION & SAFETY") }}</div>
+      <h1 style="font-size:26px;margin:4px 0 0;color:var(--ink);">{{ _("Moderation Dashboard") }}</h1>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <a href="{{ url_for('admin.reports') }}" class="button small">{{ _("View All Reports") }}</a>
+      <a href="{{ url_for('messenger.index') }}" class="button secondary small">{{ _("Open Messenger") }}</a>
+    </div>
+  </div>
+
+  <!-- Stats Grid -->
+  <div class="stats" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:14px;">
+    <div class="stat panel" style="padding:16px;">
+      <b>{{ counts.Total }}</b>
+      <span>{{ _("Total Reports") }}</span>
+    </div>
+    <div class="stat panel" style="padding:16px;border-left:4px solid #d99043;">
+      <b style="color:#d99043;">{{ counts.Pending }}</b>
+      <span>{{ _("Pending Review") }}</span>
+    </div>
+    <div class="stat panel" style="padding:16px;border-left:4px solid var(--plum-700);">
+      <b style="color:var(--plum-700);">{{ counts['Under Review'] }}</b>
+      <span>{{ _("Under Review") }}</span>
+    </div>
+    <div class="stat panel" style="padding:16px;border-left:4px solid #277653;">
+      <b style="color:#277653;">{{ counts.Resolved }}</b>
+      <span>{{ _("Resolved") }}</span>
+    </div>
+    <div class="stat panel" style="padding:16px;border-left:4px solid var(--muted);">
+      <b style="color:var(--muted);">{{ counts.Dismissed }}</b>
+      <span>{{ _("Dismissed") }}</span>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:minmax(0, 1.2fr) minmax(0, 1fr);gap:20px;align-items:start;">
+    <!-- Recent Reports Panel -->
+    <section class="panel" style="padding:18px;">
+      <div class="panel-heading">
+        <h2>{{ _("Recent Reports") }}</h2>
+        <a href="{{ url_for('admin.reports') }}" class="subtle" style="color:var(--plum-700);font-size:12px;">{{ _("See all →") }}</a>
+      </div>
+      <table class="sales-table" style="width:100%;border-collapse:collapse;margin-top:8px;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--line);text-align:left;">
+            <th style="padding:8px 6px;">ID</th>
+            <th style="padding:8px 6px;">{{ _("Item") }}</th>
+            <th style="padding:8px 6px;">{{ _("Reporter") }}</th>
+            <th style="padding:8px 6px;">{{ _("Reason") }}</th>
+            <th style="padding:8px 6px;">{{ _("Status") }}</th>
+            <th style="padding:8px 6px;text-align:right;">{{ _("Action") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in recent_reports %}
+          <tr style="border-bottom:1px solid var(--line);">
+            <td style="padding:10px 6px;font-weight:600;">#{{ r.report_id }}</td>
+            <td style="padding:10px 6px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ r.product_name }}</td>
+            <td style="padding:10px 6px;">{{ r.reporter_name }}</td>
+            <td style="padding:10px 6px;"><span class="tag">{{ _(r.reason) }}</span></td>
+            <td style="padding:10px 6px;">
+              <span class="badge" style="{% if r.status == 'Pending' %}background:#fff3cd;color:#856404;{% elif r.status == 'Resolved' %}background:#e9f5ee;color:#277653;{% else %}background:var(--plum-100);color:var(--plum-600);{% endif %}">
+                {{ _(r.status) }}
+              </span>
+            </td>
+            <td style="padding:10px 6px;text-align:right;">
+              <a href="{{ url_for('admin.report_detail', report_id=r.report_id) }}" class="button small secondary" style="font-size:11px;min-height:28px;padding:4px 8px;">{{ _("Review") }}</a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" style="padding:24px;text-align:center;color:var(--muted);">{{ _("No reports submitted yet.") }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Recent Moderation Audit Log Panel -->
+    <section class="panel" style="padding:18px;">
+      <div class="panel-heading">
+        <h2>{{ _("Moderation Audit Log") }}</h2>
+        <span class="subtle">{{ _("Security tracked") }}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px;max-height:480px;overflow-y:auto;">
+        {% for l in logs %}
+        <div style="padding:10px;border-radius:8px;background:var(--plum-50);border:1px solid var(--line);font-size:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+            <strong style="color:var(--plum-700);">{{ _(l.action) }}</strong>
+            <small class="muted">{{ l.created_at }}</small>
+          </div>
+          <div style="color:var(--ink);margin-bottom:2px;">{{ l.details or _('No details') }}</div>
+          <small class="muted">{{ _("Admin:") }} {{ l.admin_name }} {{ _("· Target:") }} {{ l.target_type }} #{{ l.target_id }}</small>
+        </div>
+        {% else %}
+        <div style="padding:24px;text-align:center;color:var(--muted);font-size:12px;">
+          {{ _("No administrative actions recorded yet.") }}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
