@@ -1,0 +1,5 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>{{ _('Photo credits') }}</h1><p class="subtle">{{ _('Sample photos illustrate listings without an uploaded image. They do not show the actual item for sale.') }}</p>
+<div class="photo-credits">{% for kind, credit in credits.items() %}<article class="photo-credit"><img src="/static/images/products/{{ credit.file }}" alt="{{ credit.title }}" loading="lazy"><p><a href="{{ credit.source }}" rel="noopener noreferrer">{{ credit.title }}</a></p><p>{{ credit.author }}</p><p>{% if credit.license_url %}<a href="{{ credit.license_url }}" rel="noopener noreferrer">{{ credit.license }}</a>{% else %}{{ credit.license }}{% endif %}</p><p class="hint">{{ _('Resized and JPEG encoded for local sample previews.') }}</p></article>{% endfor %}</div>
+{% endblock %}

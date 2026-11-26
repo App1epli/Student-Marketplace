@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="panel">
-  <div class="panel-heading"><div><div class="eyebrow">Chat</div><h2>{{ conversation.product_name }}</h2></div><a href="{{ url_for('messaging.inbox') }}">All chats</a></div>
-  <p class="subtle">Buyer: {{ conversation.buyer_name }} · Seller: {{ conversation.seller_name }}<br>Logged in as: {{ user.full_name }}</p>
+  <div class="panel-heading"><div><div class="eyebrow">{{ _("Chat") }}</div><h2>{{ conversation.product_name }}</h2></div><a href="{{ url_for('messaging.inbox') }}">{{ _("All chats") }}</a></div>
+  <p class="subtle">{{ _("Buyer:") }} {{ conversation.buyer_name }} {{ _("· Seller:") }} {{ conversation.seller_name }}<br>{{ _("Logged in as:") }} {{ user.full_name }}</p>
   <div id="chat-history" aria-live="polite" style="max-height:440px;overflow:auto">
     {% for r in rows %}
     <div class="listing" style="margin:8px 0;{% if r.sender_id == user.student_id %}background:#edf5fa;{% endif %}">
@@ -13,11 +13,11 @@
   <form method="post" action="{{ url_for('messaging.send') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="conversation_id" value="{{ conversation.conversation_id }}">
-    <label for="message">Message</label>
+    <label for="message">{{ _("Message") }}</label>
     <textarea id="message" name="message_text" maxlength="2000" required></textarea>
-    <button type="submit">Send message</button>
+    <button type="submit">{{ _("Send message") }}</button>
   </form>
-  <p class="subtle">Messages refresh every 3 seconds.</p>
+  <p class="subtle">{{ _("Messages refresh every 3 seconds.") }}</p>
 </section>
 <script>
 (function () {

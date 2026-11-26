@@ -1,44 +1,30 @@
-{% if current_user %}
-<section class="panel form-panel" id="sell">
-<p class="form-intro">Add a few details so other students can find it.</p>
-<form method="post" action="/listing" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div class="form-grid">
-    <div class="wide">
-        <p>Seller: {{ current_user.full_name if current_user else 'Please log in' }}</p>
+{% from 'icons.html' import icon %}
+<section class="panel form-panel" id="sell" aria-labelledby="sell-heading">
+  <h2 id="sell-heading">{{ _('List an item') }}</h2>
+  <p class="form-intro">{{ _('Add a few details so other students can find it.') }}</p>
+  <form method="post" action="/listing" enctype="multipart/form-data" data-commission-rate="{{ commission_rate|default(0.03) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="seller-identity">{% if current_user %}<span>{{ _('Selling as') }} <strong>{{ current_user.full_name }}</strong></span><span class="seller-online" aria-hidden="true"></span>{% else %}<a href="{{ url_for('auth.login', next='/sell') }}">{{ _('Log in to publish your listing.') }}</a>{% endif %}</div>
+    <div class="form-grid">
+      <div class="wide"><label for="category">{{ _('Category') }}</label><select id="category" name="category_id" required><option value="">{{ _('Select a category') }}</option>{% for c in categories %}<option value="{{ c.category_id }}">{{ _(c.category_name) }}</option>{% endfor %}</select></div>
+      <div class="wide"><label for="name">{{ _('Item name') }}</label><input id="name" name="product_name" maxlength="120" placeholder="{{ _('For example, programming textbook') }}" required></div>
+      <div class="wide"><label for="description">{{ _('Description') }}</label><textarea id="description" name="description" rows="3" placeholder="{{ _('Condition, included accessories, and other details') }}" required></textarea></div>
+      <div class="wide photo-field">
+        <label class="photo-field-label" for="listing-photos">{{ _('Item photos') }} <span>{{ _('optional') }}</span></label>
+        <div class="photo-dropzone">
+          <label class="photo-upload-label" for="listing-photos"><span class="upload-plus">{{ icon('plus') }}</span><strong>{{ _('Add your photos') }}</strong><small>{{ _('Up to 3 JPG, PNG or WebP · 1 MB each') }}</small></label>
+          <input class="visually-hidden" id="listing-photos" name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple aria-describedby="photo-feedback">
+          <label class="choose-files" for="listing-photos">{{ _('Choose files') }}</label>
+          <p class="hint" id="photo-feedback" role="status">{{ _('No files selected') }}</p>
+        </div>
+        <div id="photo-previews" class="photo-previews"></div>
+      </div>
+      <div><label for="price">{{ _('Price, ₸') }}</label><input id="price" name="price" type="number" min="1" max="99999999.99" step="0.01" placeholder="3500" required></div>
+      <div><label for="condition">{{ _('Condition') }}</label><select id="condition" name="item_condition">{% for value in conditions %}<option value="{{ value }}">{{ _(value) }}</option>{% endfor %}</select></div>
     </div>
-<div class="wide"><label for="category">Category</label><select id="category" name="category_id" required><option value="">Select a category</option>{% for c in categories %}<option value="{{ c.category_id }}">{{ c.category_name }}</option>{% endfor %}</select></div>
-<div class="wide"><label for="name">Item name</label><input id="name" name="product_name" maxlength="120" placeholder="For example, programming textbook" required></div>
-<div class="wide"><label for="description">Description</label><textarea id="description" name="description" placeholder="Condition, included accessories, and other details" required></textarea></div>
-<div class="wide"><label for="listing-photos">Item photos <span class="muted">optional</span></label><label class="photo-dropzone" for="listing-photos"><span aria-hidden="true">＋</span><strong>Add your photos</strong><small>Up to 3 JPG, PNG or WebP · 1 MB each</small></label><input id="listing-photos" name="photos" type="file" accept="image/jpeg,image/png,image/webp" multiple aria-describedby="photo-feedback"><p class="hint" id="photo-feedback" role="status"></p><div id="photo-previews" class="photo-previews"></div></div>
-<div><label for="price">Price, ₸</label><input id="price" name="price" type="number" min="1" max="99999999.99" step="0.01" placeholder="3500" required></div>
-
-<div class="wide seller-fee-preview">
-    <h3>Estimated earnings</h3>
-
-    <p>
-        Platform commission (3%):
-        <strong id="commission-amount">0 ₸</strong>
-    </p>
-
-    <p>
-        You will receive:
-        <strong id="seller-earnings">0 ₸</strong>
-    </p>
-
-    <small>
-        The commission is deducted only after
-        a successful demo sale.
-    </small>
-</div>
-
-<div><label for="condition">Condition</label><select id="condition" name="item_condition">{% for value in conditions %}<option value="{{ value }}">{{ value }}</option>{% endfor %}</select></div>
-</div><div class="form-actions"><button type="submit" {% if not current_user %}disabled{% endif %}>Publish listing</button></div>
-<p class="safe-note">Set a fair price and describe the item's condition. Your listing will appear in the catalog.</p></form></section>
-
-<script src="/static/listing.js" defer></script>
-{% else %}
-<section class="panel form-panel" id="sell">
-    <h2>List an item</h2>
-    <p>Please log in to publish a listing.</p>
-    <a class="button" href="{{ url_for('auth.login') }}">Log in</a>
+    <div class="seller-fee-preview"><h3>{{ _('Estimated earnings') }}</h3><div><span>{{ _('Platform commission (3%)') }}</span><strong id="commission-amount">0 ₸</strong></div><div><span>{{ _('You will receive') }}</span><strong id="seller-earnings">0 ₸</strong></div><p>{{ _('The commission is deducted only after a successful demo sale.') }}</p></div>
+    <div class="form-actions"><button type="submit" {% if not current_user %}disabled{% endif %}>{{ _('Publish listing') }}</button></div>
+    <p class="safe-note">{{ _("Set a fair price and describe the item's condition. Your listing will appear in the catalog.") }}</p>
+  </form>
 </section>
-{% endif %}
+<script src="/static/listing.js" defer></script>

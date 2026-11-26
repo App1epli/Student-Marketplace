@@ -1,0 +1,38 @@
+{% from 'icons.html' import icon %}
+{% from 'stars.html' import product_stars, sale_controls with context %}
+{% macro product_card(r) %}
+{% set own = current_user and r.seller_id == current_user.student_id %}
+{% set blocked = r.booked_by and (not current_user or r.booked_by != current_user.student_id) %}
+<article class="listing market-card" id="item-{{ r.product_id }}">
+  <div class="card-photo-wrap">
+    <a class="listing-image" href="{{ url_for('item_detail', product_id=r.product_id) }}" aria-label="{{ _('View {item}', item=r.product_name) }}">
+      {% if r.photo_id %}<img src="{{ url_for('product_photo', photo_id=r.photo_id) }}" alt="{{ r.product_name }}" width="640" height="800" loading="lazy">
+      {% elif sample_image(r.product_name, r.category_name) %}<img src="{{ sample_image(r.product_name, r.category_name) }}" alt="{{ _('Sample photo: {item}', item=r.product_name) }}" width="640" height="800" loading="lazy"><span class="sample-photo-label">{{ _('Sample photo') }}</span>
+      {% else %}<span class="no-photo">{{ _('No photos added yet') }}</span>{% endif %}
+    </a>
+    {% if current_user %}
+    <form class="card-like-form" method="post" action="{{ url_for('like_product', product_id=r.product_id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="liked" value="{{ '0' if r.liked else '1' }}"><input type="hidden" name="return_view" value="catalog">
+      <input type="hidden" name="return_q" value="{{ search }}"><input type="hidden" name="return_category" value="{{ category }}"><input type="hidden" name="return_status" value="{{ status }}"><input type="hidden" name="return_scope" value="{{ request.args.get('scope', '') }}">
+      <button class="card-like{{ ' is-liked' if r.liked else '' }}" type="submit" aria-label="{{ _('Remove from Liked' if r.liked else 'Save to Liked') }}" aria-pressed="{{ 'true' if r.liked else 'false' }}">{{ icon('heart') }}</button>
+    </form>
+    {% else %}<a class="card-like" href="{{ url_for('auth.login', next='/items/' ~ r.product_id) }}" aria-label="{{ _('Save to Liked') }}">{{ icon('heart') }}</a>{% endif %}
+    {% if r.status != 'Available' %}<span class="photo-status">{{ _(r.status) }}</span>{% elif r.booked_by %}<span class="photo-status">{{ _('Booked for you' if current_user and r.booked_by == current_user.student_id else 'Booked') }}</span>{% endif %}
+  </div>
+  <div class="listing-body">
+    <div class="card-price-row"><div class="price">{{ r.price|money }}</div><span class="card-condition">{{ _(r.item_condition) }}</span></div>
+    <h3><a href="{{ url_for('item_detail', product_id=r.product_id) }}">{{ r.product_name }}</a></h3>
+    <div class="card-seller"><span>{{ r.seller }}</span><span class="seller-rating">{% if r.rating %}<span class="seller-star">★</span> {{ r.rating }}{% else %}{{ _('New seller') }}{% endif %}</span></div>
+    <a class="card-rating" href="{{ url_for('item_detail', product_id=r.product_id) }}#product-rating-{{ r.product_id }}">{{ icon('star') }}{% if r.product_rating_count %}{{ r.product_rating }} · {{ count_label('rating', r.product_rating_count) }}{% else %}{{ _('Rate this item') }}{% endif %}</a>
+    <details class="card-details"><summary>{{ _('Details') }}</summary><p>{{ r.description }}</p><a href="{{ url_for('item_detail', product_id=r.product_id) }}">{{ _('View item') }} →</a>{{ product_stars(r.product_id, r.product_rating, r.product_rating_count, r.my_stars, 'catalog') }}{% if own %}{{ sale_controls(r.product_id, r.seller_id, r.status) }}{% endif %}</details>
+  </div>
+  <div class="listing-actions card-actions">
+    {% if own %}<a class="button secondary card-primary" href="{{ url_for('edit_listing', product_id=r.product_id) if r.status == 'Available' else url_for('my_listings') }}">{{ _('Edit Listing' if r.status == 'Available' else 'Manage listing') }}</a>
+    {% elif r.status == 'Available' and not blocked %}
+    <a class="button card-primary" href="{{ url_for('checkout', product_id=r.product_id) }}">{{ _('Buy') }}</a>
+    <form method="post" action="{{ url_for('cart_toggle', product_id=r.product_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="card-icon-button{{ ' is-selected' if r.product_id in cart_product_ids|default([]) else '' }}" aria-label="{{ _('Remove from cart' if r.product_id in cart_product_ids|default([]) else 'Add to cart') }}" title="{{ _('Remove from cart' if r.product_id in cart_product_ids|default([]) else 'Add to cart') }}">{{ icon('shopping-cart') }}</button></form>
+    {% else %}<a class="button secondary card-primary" href="{{ url_for('item_detail', product_id=r.product_id) }}">{{ _('View item') }}</a>{% endif %}
+    {% if not own %}{% if current_user %}<form method="post" action="{{ url_for('messenger.start') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product_id" value="{{ r.product_id }}"><button class="card-icon-button" aria-label="{{ _('Contact seller') }}" title="{{ _('Contact seller') }}">{{ icon('message-square') }}</button></form>{% else %}<a class="card-icon-button" href="{{ url_for('auth.login', next='/items/' ~ r.product_id) }}" aria-label="{{ _('Contact seller') }}" title="{{ _('Contact seller') }}">{{ icon('message-square') }}</a>{% endif %}{% endif %}
+  </div>
+</article>
+{% endmacro %}

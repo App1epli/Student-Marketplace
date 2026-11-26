@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="selling-page">
+  <a class="back-link" href="{{ url_for('catalog') }}">{{ _('← Back to marketplace') }}</a>
+  {% if current_user %}
+  {% include 'listing_form.html' %}
+  {% else %}
+  <section class="panel selling-login"><h1>{{ _('List an item') }}</h1><p>{{ _('Log in to publish your listing.') }}</p><a class="button" href="{{ url_for('auth.login', next='/sell') }}">{{ _('Log in') }}</a><a class="button secondary" href="{{ url_for('auth.register') }}">{{ _('Create account') }}</a></section>
+  {% endif %}
+</div>
+{% endblock %}
