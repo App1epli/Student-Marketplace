@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="messenger-container" style="display:grid;grid-template-columns:320px minmax(0,1fr);gap:20px;min-height:560px;align-items:stretch;">
+  <!-- Left Column: Conversations Sidebar -->
+  <aside class="panel messenger-sidebar" style="padding:14px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;max-height:680px;">
+    <div class="panel-heading" style="margin-bottom:6px;">
+      <div>
+        <div class="eyebrow">{{ _("Direct Messenger") }}</div>
+        <h2 style="font-size:16px;">{{ _("Chats") }}</h2>
+      </div>
+      <span class="subtle">{{ conversations|length }}</span>
+    </div>
+    <div class="conversations-list" style="display:flex;flex-direction:column;gap:8px;">
+      {% for c in conversations %}
+      {% set other_name = c.seller_name if c.buyer_id == user.student_id else c.buyer_name %}
+      <a href="{{ url_for('messenger.chat', conversation_id=c.conversation_id) }}"
+         class="conversation-item"
+         style="display:flex;gap:10px;padding:10px;border-radius:8px;border:1px solid var(--line);background:#fff;text-decoration:none;color:inherit;transition:background 0.15s, border-color 0.15s;">
+        <span class="profile-avatar" style="width:36px;height:36px;border-radius:50%;background:var(--plum-100);color:var(--primary);display:grid;place-items:center;font-weight:700;font-size:13px;flex-shrink:0;">
+          {{ other_name[0] }}
+        </span>
+        <div style="min-width:0;flex:1;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px;">
+            <strong style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ other_name }}</strong>
+            <small class="muted" style="font-size:10px;flex-shrink:0;">{{ c.last_message_time or '' }}</small>
+          </div>
+          <div style="font-size:11px;color:var(--plum-700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ c.product_name }}</div>
+          <div class="muted" style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;">
+            {{ c.last_message or _("No messages yet") }}
+          </div>
+        </div>
+      </a>
+      {% else %}
+      <div class="empty" style="text-align:center;padding:30px 10px;color:var(--muted);">
+        <div style="font-size:28px;margin-bottom:6px;">💬</div>
+        <strong>{{ _("No conversations yet") }}</strong>
+        <p class="muted" style="font-size:11px;margin-top:4px;">{{ _("Browse items and click Contact Seller to start a conversation.") }}</p>
+        <a class="button small" href="{{ url_for('catalog') }}" style="margin-top:10px;">{{ _("Browse Catalog") }}</a>
+      </div>
+      {% endfor %}
+    </div>
+  </aside>
+
+  <!-- Right Column: Placeholder / Empty View -->
+  <section class="panel messenger-empty-pane" style="padding:40px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:var(--plum-50);">
+    <div style="width:64px;height:64px;border-radius:50%;background:var(--plum-100);color:var(--primary);display:grid;place-items:center;font-size:32px;margin-bottom:16px;">
+      ✉
+    </div>
+    <h2 style="font-size:18px;margin-bottom:8px;">{{ _("Your Campus Messenger") }}</h2>
+    <p class="subtle" style="max-width:380px;font-size:13px;line-height:1.5;">
+      {{ _("Select an existing conversation from the left sidebar or initiate a chat from any marketplace listing.") }}
+    </p>
+  </section>
+</div>
+{% endblock %}
+

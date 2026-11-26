@@ -1,43 +1,69 @@
+{% from 'icons.html' import icon %}
 <!doctype html>
-<html lang="en">
+<html lang="{{ language }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#b49bd9">
-  <title>{{ title }} | Student Marketplace</title>
+  <meta name="theme-color" content="#542644">
+  <title>{{ title if request.endpoint == 'item_detail' else _(title) }} {{ _("| Student Marketplace") }}</title>
+  <link rel="stylesheet" href="/static/fonts/fonts.css">
   <link rel="stylesheet" href="/static/styles.css">
-  <link rel="stylesheet" href="/static/lavender.css">
+  <link rel="stylesheet" href="/static/marketplace.css">
   <meta name="csrf-token" content="{{ csrf_token() }}">
+  <script id="i18n-messages" type="application/json">{{ client_translations|tojson }}</script>
+  <script src="/static/i18n.js"></script>
 </head>
 <body>
+<a class="skip-link" href="#main-content">{{ _('Skip to content') }}</a>
 <aside class="app-sidebar">
-  <a class="brand" href="/"><span class="brand-mark">SM</span><span>Marketplace<span class="brand-dot">.</span></span></a>
-  <div class="campus-workspace"><span class="campus-icon">S</span><div><strong>Student community</strong><small>Your campus marketplace</small></div><span class="online-dot"></span></div>
-  <p class="nav-label">WORKSPACE</p>
-  <nav class="side-nav">
-    <a class="{{ 'active' if request.path == '/' and not request.args.get('scope') or request.path.startswith('/items') else '' }}" href="/"><span>▦</span> Marketplace</a>
-    <a class="{{ 'active' if request.args.get('scope') == 'liked' else '' }}" href="{{ url_for('liked_view') }}"><span>♡</span> Liked</a>
-    <a class="{{ 'active' if request.args.get('scope') == 'booked' else '' }}" href="{{ url_for('bookings_view') }}"><span>◷</span> Bookings</a>
-    <a class="{{ 'active' if request.path == '/cart' else '' }}" href="{{ url_for('cart_view') }}">
-      <span>🛒</span> Cart
-      {% if cart_count and cart_count > 0 %}<span class="badge" style="margin-left:auto;padding:2px 7px;font-size:11px;background:#eee5f8;color:#78569f;font-weight:700;">{{ cart_count }}</span>{% endif %}
-    </a>
-    <a class="{{ 'active' if request.path == '/sales' else '' }}" href="/sales"><span>▤</span> Purchases & ratings</a>
-    <a class="{{ 'active' if request.path.startswith('/messages') else '' }}" href="{{ url_for('messaging.inbox') }}"><span>◷</span> Messages</a>
-    <a href="/#sell"><span>＋</span> Sell an item</a>
-    <a class="{{ 'active' if request.path == '/my-listings' or request.path.startswith('/listings/') else '' }}"
-      href="{{ url_for('my_listings') }}">
-        <span>◇</span> My listings
-    </a>
+  <a class="brand" href="/" aria-label="Student Marketplace"><strong>Student</strong> <span>Marketplace</span></a>
+  <nav class="side-nav" aria-label="{{ _('Main navigation') }}">
+    <a class="{{ 'active' if request.path == '/' and not request.args.get('scope') or request.path.startswith('/items') else '' }}" href="/">{{ icon('layout-grid') }} <span>{{ _('Marketplace') }}</span></a>
+    <a class="{{ 'active' if request.path == '/sales' else '' }}" href="/sales">{{ icon('receipt') }} <span>{{ _('Purchases & ratings') }}</span></a>
+    <a class="{{ 'active' if request.path.startswith('/messenger') or request.path.startswith('/messages') else '' }}" href="{{ url_for('messenger.index') }}">{{ icon('message-square') }} <span>{{ _('Messages') }}</span></a>
+    {% if is_admin %}
+    <a class="{{ 'active' if request.path.startswith('/admin') else '' }}" href="{{ url_for('admin.dashboard') }}">{{ icon('shield-check') }} <span>{{ _('Admin Dashboard') }}</span></a>
+    {% endif %}
+    <a class="sell-nav{{ ' active' if request.path == '/sell' else '' }}" href="{{ url_for('sell') }}">{{ icon('plus-circle') }} <span>{{ _('Sell an item') }}</span></a>
+    <a class="{{ 'active' if request.path.startswith('/my-listings') or request.path.startswith('/listings') else '' }}" href="{{ url_for('my_listings') }}">{{ icon('tag') }} <span>{{ _('My listings') }}</span></a>
+    <a class="{{ 'active' if request.args.get('scope') == 'liked' else '' }}" href="{{ url_for('liked_view') }}">{{ icon('heart') }} <span>{{ _('Liked items') }}</span></a>
+    <a class="{{ 'active' if request.args.get('scope') == 'booked' else '' }}" href="{{ url_for('bookings_view') }}">{{ icon('calendar') }} <span>{{ _('Bookings') }}</span></a>
+    <a class="{{ 'active' if request.path == '/cart' else '' }}" href="{{ url_for('cart_view') }}">{{ icon('shopping-cart') }} <span>{{ _('Cart') }}</span>{% if cart_count %}<span class="nav-count">{{ cart_count }}</span>{% endif %}</a>
   </nav>
-  <div class="sidebar-bottom"><div class="community-note"><span>✧</span><strong>Good finds, closer to home.</strong><p>Give useful things a second life with your student community.</p></div>
-  <div class="sidebar-profile">{% if current_user %}<span class="profile-avatar">{{ current_user.full_name[0] }}</span><div><strong>{{ current_user.full_name }}</strong><small>Student account</small></div><form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="logout-button" aria-label="Log out">↪</button></form>{% else %}<span class="profile-avatar">S</span><div><strong>Welcome, student</strong><small><a href="{{ url_for('auth.login') }}">Log in</a> · <a href="{{ url_for('auth.register') }}">Join campus</a></small></div>{% endif %}</div></div>
+  <div class="sidebar-bottom">
+    <div class="sidebar-profile">
+      {% if current_user %}
+      <span class="profile-avatar">{{ current_user.full_name[0] }}</span>
+      <div><strong>{{ current_user.full_name }}</strong><small>{{ _('Administrator' if is_admin else 'Student account') }}</small></div>
+      <form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="logout-button" aria-label="{{ _('Log out') }}" title="{{ _('Log out') }}">{{ icon('log-out') }}</button></form>
+      {% else %}
+      <span class="profile-avatar">S</span><div><strong>{{ _('Welcome, student') }}</strong><small><a href="{{ url_for('auth.login') }}">{{ _('Log in') }}</a> · <a href="{{ url_for('auth.register') }}">{{ _('Join campus') }}</a></small></div>
+      {% endif %}
+    </div>
+  </div>
 </aside>
-<div class="app-main"><header class="app-topbar"><div class="breadcrumb">Workspace <span>/</span> <strong>{{ title }}</strong></div><div class="topbar-actions"><span class="live-pill"><i></i> Campus community</span><a class="button secondary small" href="/#sell">＋ List an item</a></div></header>
-<main>
-  {% if notice %}<div class="notice" role="status"><span class="notice-icon">✓</span><span>{{ notice }}</span></div>{% endif %}
-  {% block content %}{% endblock %}
-  <footer>Classroom demo. Sample marketplace accounts and listings are fictional.</footer>
-</main></div>
+<div class="app-main">
+  <header class="app-topbar">
+    <div class="breadcrumb"><strong>{{ title if request.endpoint == 'item_detail' else _(title) }}</strong></div>
+    <div class="topbar-actions">
+      <form class="language-switcher" method="post" action="{{ url_for('i18n.set_language') }}" aria-label="{{ _('Interface language') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+        {% for code, label, native_name in languages %}
+        <button type="submit" name="language" value="{{ code }}" class="language-option{{ ' is-active' if language == code else '' }}" lang="{{ code }}" title="{{ native_name }}" aria-label="{{ native_name }}" aria-pressed="{{ 'true' if language == code else 'false' }}">{{ label }}</button>
+        {% endfor %}
+      </form>
+      <a class="button topbar-list-button" href="{{ url_for('sell') }}">{{ icon('plus') }}<span>{{ _('List an item') }}</span></a>
+    </div>
+  </header>
+  <main id="main-content" tabindex="-1">
+    {% if notice %}<div class="notice" role="status"><span class="notice-icon">{{ icon('check') }}</span><span>{{ _(notice) }}</span></div>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="site-footer">
+    <div class="footer-top"><a class="footer-brand" href="/">Student Marketplace</a><span>{{ _('Built for university communities.') }}</span><nav aria-label="{{ _('Footer navigation') }}"><a href="/">{{ _('Marketplace') }}</a><a href="/sales">{{ _('Purchase history') }}</a><a href="{{ url_for('messenger.index') }}">{{ _('Messages') }}</a></nav><span class="footer-copyright">© 2026 Student Marketplace</span></div>
+    <p>{{ _('Classroom demo. Sample marketplace accounts and listings are fictional.') }} · <a href="{{ url_for('photo_credits') }}">{{ _('Photo credits') }}</a></p>
+  </footer>
+</div>
 </body>
 </html>
