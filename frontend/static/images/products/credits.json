@@ -1,0 +1,202 @@
+{
+  "backpack": {
+    "file": "backpack.jpg",
+    "title": "Leather backpack on a beige background",
+    "source": "https://www.pexels.com/photo/15059375/",
+    "download": "https://images.pexels.com/photos/15059375/pexels-photo-15059375.jpeg?auto=compress&cs=tinysrgb&w=1000",
+    "author": "Collab Media",
+    "license": "Pexels License",
+    "license_url": "https://www.pexels.com/license/",
+    "changes": "Resized and JPEG encoded for local sample previews."
+  },
+  "calculator": {
+    "file": "calculator.jpg",
+    "title": "Scientific calculator on a wooden table",
+    "source": "https://www.pexels.com/photo/12174065/",
+    "download": "https://images.pexels.com/photos/12174065/pexels-photo-12174065.jpeg?auto=compress&cs=tinysrgb&w=1000",
+    "author": "Alexey Demidov",
+    "license": "Pexels License",
+    "license_url": "https://www.pexels.com/license/",
+    "changes": "Resized and JPEG encoded for local sample previews."
+  },
+  "headphones": {
+    "file": "headphones.jpg",
+    "title": "Beige wireless headphones on a dark surface",
+    "source": "https://www.pexels.com/photo/33305814/",
+    "download": "https://images.pexels.com/photos/33305814/pexels-photo-33305814.jpeg?auto=compress&cs=tinysrgb&w=1000",
+    "author": "IRFHKMZ",
+    "license": "Pexels License",
+    "license_url": "https://www.pexels.com/license/",
+    "changes": "Resized and JPEG encoded for local sample previews."
+  },
+  "kettle": {
+    "file": "kettle.jpg",
+    "title": "White electric kettle on a kitchen counter",
+    "source": "https://www.pexels.com/photo/3847574/",
+    "download": "https://images.pexels.com/photos/3847574/pexels-photo-3847574.jpeg?auto=compress&cs=tinysrgb&w=1000",
+    "author": "ready made",
+    "license": "Pexels License",
+    "license_url": "https://www.pexels.com/license/",
+    "changes": "Resized and JPEG encoded for local sample previews. Cropped to focus on the kettle."
+  },
+  "keyboard": {
+    "file": "keyboard.jpg",
+    "title": "White mechanical keyboard on a wooden desk",
+    "source": "https://www.pexels.com/photo/32313567/",
+    "download": "https://images.pexels.com/photos/32313567/pexels-photo-32313567.jpeg?auto=compress&cs=tinysrgb&w=1000",
+    "author": "Alexey Demidov",
+    "license": "Pexels License",
+    "license_url": "https://www.pexels.com/license/",
+    "changes": "Resized and JPEG encoded for local sample previews."
+  },
+  "lamp": {
+    "file": "lamp.jpg",
+    "title": "Chrome desk lamp against cream fabric",
+    "source": "https://www.pexels.com/photo/7184401/",
+    "download": "https://images.pexels.com/photos/7184401/pexels-photo-7184401.jpeg?auto=compress&cs=tinysrgb&w=1000",
+    "author": "Nataliya Vaitkevich",
+    "license": "Pexels License",
+    "license_url": "https://www.pexels.com/license/",
+    "changes": "Resized and JPEG encoded for local sample previews."
+  },
+  "laptop-sleeve": {
+    "file": "laptop-sleeve.jpg",
+    "title": "Laptop with a brown leather sleeve",
+    "source": "https://www.pexels.com/photo/12442665/",
+    "download": "https://images.pexels.com/photos/12442665/pexels-photo-12442665.jpeg?auto=compress&cs=tinysrgb&w=1000",
+    "author": "Bilakis",
+    "license": "Pexels License",
+    "license_url": "https://www.pexels.com/license/",
+    "changes": "Resized and JPEG encoded for local sample previews."
+  },
+  "laptop-stand": {
+    "file": "laptop-stand.jpg",
+    "title": "Laptop on a stand with notebook",
+    "source": "https://www.pexels.com/photo/34502067/",
+    "download": "https://images.pexels.com/photos/34502067/pexels-photo-34502067.jpeg?auto=compress&cs=tinysrgb&w=1000",
+    "author": "Karina Finger",
+    "license": "Pexels License",
+    "license_url": "https://www.pexels.com/license/",
+    "changes": "Resized and JPEG encoded for local sample previews."
+  },
+  "laundry-basket": {
+    "file": "laundry-basket.jpg",
+    "title": "White laundry basket on a wooden floor",
+    "source": "https://www.pexels.com/photo/5902896/",
+    "download": "https://images.pexels.com/photos/5902896/pexels-photo-5902896.jpeg?auto=compress&cs=tinysrgb&w=1000",
+    "author": "cottonbro studio",
+    "license": "Pexels License",
+    "license_url": "https://www.pexels.com/license/",
+    "changes": "Resized and JPEG encoded for local sample previews."
+  },
+  "mouse": {
+    "file": "mouse.jpg",
+    "title": "White wireless mouse on a neutral surface",
+    "source": "https://www.pexels.com/photo/32755767/",
+    "download": "https://images.pexels.com/photos/32755767/pexels-photo-32755767.jpeg?auto=compress&cs=tinysrgb&w=1000",
+    "author": "Matheus Bertelli",
+    "license": "Pexels License",
+    "license_url": "https://www.pexels.com/license/",
+    "changes": "Resized and JPEG encoded for local sample previews."
+  },
+  "notebooks": {
+    "file": "notebooks.jpg",
+    "title": "Spiral notebook and pencil on kraft paper",
+    "source": "https://www.pexels.com/photo/5712444/",
+    "download": "https://images.pexels.com/photos/5712444/pexels-photo-5712444.jpeg?auto=compress&cs=tinysrgb&w=1000",
+    "author": "Arina Krasnikova",
+    "license": "Pexels License",
+    "license_url": "https://www.pexels.com/license/",
+    "changes": "Resized and JPEG encoded for local sample previews."
+  },
+  "notes": {
+    "file": "notes.jpg",
+    "title": "Study notes and a black pen",
+    "source": "https://www.pexels.com/photo/8250882/",
+    "download": "https://images.pexels.com/photos/8250882/pexels-photo-8250882.jpeg?auto=compress&cs=tinysrgb&w=1000",
+    "author": "PNW Production",
+    "license": "Pexels License",
+    "license_url": "https://www.pexels.com/license/",
+    "changes": "Resized and JPEG encoded for local sample previews."
+  },
+  "organizer": {
+    "file": "organizer.jpg",
+    "title": "Pencil holder on a sunlit wooden desk",
+    "source": "https://www.pexels.com/photo/25311977/",
+    "download": "https://images.pexels.com/photos/25311977/pexels-photo-25311977.jpeg?auto=compress&cs=tinysrgb&w=1000",
+    "author": "Richard Frazier",
+    "license": "Pexels License",
+    "license_url": "https://www.pexels.com/license/",
+    "changes": "Resized and JPEG encoded for local sample previews."
+  },
+  "rain-jacket": {
+    "file": "rain-jacket.jpg",
+    "title": "Yellow hooded raincoat",
+    "source": "https://www.pexels.com/photo/2027941/",
+    "download": "https://images.pexels.com/photos/2027941/pexels-photo-2027941.jpeg?auto=compress&cs=tinysrgb&w=1000",
+    "author": "Marcelo Dias",
+    "license": "Pexels License",
+    "license_url": "https://www.pexels.com/license/",
+    "changes": "Resized and JPEG encoded for local sample previews."
+  },
+  "scarf": {
+    "file": "scarf.jpg",
+    "title": "Apricot and blush scarves on a white rack",
+    "source": "https://www.pexels.com/photo/11770736/",
+    "download": "https://images.pexels.com/photos/11770736/pexels-photo-11770736.jpeg?auto=compress&cs=tinysrgb&w=1000",
+    "author": "Alin Luna",
+    "license": "Pexels License",
+    "license_url": "https://www.pexels.com/license/",
+    "changes": "Resized and JPEG encoded for local sample previews."
+  },
+  "ssd": {
+    "file": "ssd.jpg",
+    "title": "Portable SSD on a wooden desk",
+    "source": "https://www.pexels.com/photo/13595075/",
+    "download": "https://images.pexels.com/photos/13595075/pexels-photo-13595075.jpeg?auto=compress&cs=tinysrgb&w=1000",
+    "author": "Avinash Kumar",
+    "license": "Pexels License",
+    "license_url": "https://www.pexels.com/license/",
+    "changes": "Resized and JPEG encoded for local sample previews."
+  },
+  "storage-box": {
+    "file": "storage-box.jpg",
+    "title": "Pastel foldable storage crates",
+    "source": "https://www.pexels.com/photo/8356210/",
+    "download": "https://images.pexels.com/photos/8356210/pexels-photo-8356210.jpeg?auto=compress&cs=tinysrgb&w=1000",
+    "author": "Marina M",
+    "license": "Pexels License",
+    "license_url": "https://www.pexels.com/license/",
+    "changes": "Resized and JPEG encoded for local sample previews."
+  },
+  "textbooks": {
+    "file": "textbooks.jpg",
+    "title": "Books in soft daylight",
+    "source": "https://www.pexels.com/photo/7034092/",
+    "download": "https://images.pexels.com/photos/7034092/pexels-photo-7034092.jpeg?auto=compress&cs=tinysrgb&w=1000",
+    "author": "George Milton",
+    "license": "Pexels License",
+    "license_url": "https://www.pexels.com/license/",
+    "changes": "Resized and JPEG encoded for local sample previews."
+  },
+  "tote": {
+    "file": "tote.jpg",
+    "title": "Canvas tote with books on linen",
+    "source": "https://www.pexels.com/photo/30382341/",
+    "download": "https://images.pexels.com/photos/30382341/pexels-photo-30382341.jpeg?auto=compress&cs=tinysrgb&w=1000",
+    "author": "fzaytt",
+    "license": "Pexels License",
+    "license_url": "https://www.pexels.com/license/",
+    "changes": "Resized and JPEG encoded for local sample previews."
+  },
+  "usb-hub": {
+    "file": "usb-hub.jpg",
+    "title": "USB-C hub on a clean background",
+    "source": "https://www.pexels.com/photo/20076003/",
+    "download": "https://images.pexels.com/photos/20076003/pexels-photo-20076003.jpeg?auto=compress&cs=tinysrgb&w=1000",
+    "author": "Aleksander Dumała",
+    "license": "Pexels License",
+    "license_url": "https://www.pexels.com/license/",
+    "changes": "Resized and JPEG encoded for local sample previews."
+  }
+}

@@ -173,6 +173,90 @@ class PostgreSQLTests(unittest.TestCase):
         with (client or self.client).session_transaction() as session:
             session['student_id'] = student_id
 
+    def test_selling_page_uses_existing_listing_contract(self):
+        page = self.client.get('/sell')
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b'next=/sell', page.data)
+        self.assertNotIn(b'action="/listing"', page.data)
+        self.sign_in_sample(1)
+        page = self.client.get('/sell')
+        self.assertEqual(page.status_code, 200)
+        for field in (b'action="/listing"', b'name="csrf_token"', b'name="photos"',
+                      b'name="item_condition"', b'id="commission-amount"', b'id="seller-earnings"'):
+            self.assertIn(field, page.data)
+        self.assertEqual(self.client.get('/listing').location, '/sell')
+
+    def test_guest_cart_survives_login_and_is_private(self):
+        product_id = self.create_listing('Guest cart find')
+        self.assertEqual(post_form(self.client, f'/cart/toggle/{product_id}').status_code, 302)
+        with self.client.session_transaction() as session:
+            self.assertIn(product_id, session['guest_cart'])
+        self.assertEqual(self.register().status_code, 302)
+        email = self.last_email
+        self.assertEqual(self.login(email=email).status_code, 302)
+        student_id = self.student_id_for(email)
+        with database.connect() as conn:
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM cart_items WHERE student_id=? AND product_id=?',
+                                         (student_id, product_id)).fetchone()[0], 1)
+        self.assertIn(b'Guest cart find', self.client.get('/cart').data)
+        another = web.app.test_client()
+        self.sign_in_sample(3, another)
+        self.assertNotIn(b'Guest cart find', another.get('/cart').data)
+        post_form(another, f'/cart/remove/{product_id}')
+        self.assertIn(b'Guest cart find', self.client.get('/cart').data)
+        post_form(self.client, f'/cart/remove/{product_id}')
+        self.assertNotIn(b'Guest cart find', self.client.get('/cart').data)
+
+    def test_listing_management_and_promotions_preserve_ownership(self):
+        product_id = self.create_listing('Manage this find')
+        edit_url = f'/listings/{product_id}/edit'
+        promotion_url = f'/listings/{product_id}/promote'
+        form = dict(product_name='Managed campus find', description='Updated details',
+                    category_id='1', price='2999.90', item_condition='Good')
+        self.sign_in_sample(2)
+        self.assertEqual(self.client.get(edit_url).status_code, 404)
+        self.assertEqual(post_form(self.client, edit_url, form).status_code, 404)
+        self.assertEqual(self.client.get(promotion_url).status_code, 404)
+        self.assertEqual(post_form(self.client, promotion_url, {'duration_days':'1'}).status_code, 404)
+        self.sign_in_sample(1)
+        self.assertEqual(self.client.get(edit_url).status_code, 200)
+        self.assertEqual(post_form(self.client, edit_url, form).status_code, 303)
+        self.assertEqual(post_form(self.client, promotion_url, {'duration_days':'1'}).status_code, 303)
+        self.assertEqual(post_form(self.client, promotion_url, {'duration_days':'1'}).status_code, 409)
+        self.assertIn(b'Hot Offers', self.client.get('/').data)
+        self.assertIn(b'Managed campus find', self.client.get('/my-listings').data)
+        self.assertEqual(post_form(self.client, f'/listings/{product_id}/delete').status_code, 303)
+        with database.connect() as conn:
+            product = conn.execute('SELECT seller_id, status, price FROM products WHERE product_id=?', (product_id,)).fetchone()
+            self.assertEqual(product['seller_id'], 1)
+            self.assertEqual(product['status'], 'Removed')
+            self.assertEqual(str(product['price']), '2999.90')
+
+    def test_seller_commission_keeps_buyer_total_unchanged(self):
+        product_id = self.create_listing('Commission test find')
+        form = self.checkout_form(product_id, buyer=2)
+        self.assertEqual(post_form(self.client, f'/checkout/{product_id}', form).status_code, 303)
+        with database.connect() as conn:
+            purchase = conn.execute('SELECT agreed_price, platform_fee, seller_payout, commission_rate FROM purchases WHERE product_id=?',
+                                    (product_id,)).fetchone()
+            self.assertEqual(str(purchase['agreed_price']), '1234.50')
+            self.assertEqual(str(purchase['platform_fee']), '37.04')
+            self.assertEqual(str(purchase['seller_payout']), '1197.46')
+            self.assertEqual(purchase['seller_payout'] + purchase['platform_fee'], purchase['agreed_price'])
+
+    def test_catalog_like_preserves_filters_and_returns_to_item(self):
+        product_id = self.create_listing('Filtered saved find')
+        self.sign_in_sample(2)
+        response = post_form(self.client, f'/items/{product_id}/like',
+            dict(liked='1', return_view='catalog', return_q='Filtered', return_category='1',
+                 return_status='All', return_scope='liked'))
+        self.assertEqual(response.status_code, 303)
+        self.assertIn('q=Filtered', response.location)
+        self.assertIn('category=1', response.location)
+        self.assertIn('scope=liked', response.location)
+        self.assertTrue(response.location.endswith(f'#item-{product_id}'))
+        self.assertIn(b'Filtered saved find', self.client.get(response.location).data)
+
     def test_liked_is_private_persistent_and_idempotent(self):
         product_id = self.create_listing('Saved find')
         url = f'/items/{product_id}/like'
